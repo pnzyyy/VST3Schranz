@@ -1,0 +1,7 @@
+build/
+.cache/
+*.o
+*.a
+*.so
+*.vst3
+.DS_Store
