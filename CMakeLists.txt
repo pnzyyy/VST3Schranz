@@ -71,3 +71,7 @@ target_link_libraries(SchranzMachine
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+# --- Packaging ---
+# Use ./install.sh for local installation
+# Use ./package.sh to create distributable packages (tar.gz + .deb)
