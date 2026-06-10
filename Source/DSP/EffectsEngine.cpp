@@ -295,6 +295,8 @@ void EQEngine::prepare(double sr)
 
 void EQEngine::process(float& sample)
 {
+    if (!std::isfinite(sample)) { sample = 0.0f; return; }
+
     float low = lowState + lowCutoff * (sample - lowState);
     lowState = low;
 
@@ -304,7 +306,10 @@ void EQEngine::process(float& sample)
     float mid = high - highState;
     high = highState;
 
-    sample = low * lowGain + mid * midGain + high * highGain;
+    if (!std::isfinite(lowState)) lowState = 0.0f;
+    if (!std::isfinite(highState)) highState = 0.0f;
+
+    sample = juce::jlimit(-4.0f, 4.0f, low * lowGain + mid * midGain + high * highGain);
 }
 
 void EQEngine::reset()
@@ -388,7 +393,7 @@ void WaveshaperEngine::process(float& sample)
             break;
     }
 
-    sample = dry * (1.0f - amount) + shaped * amount;
+    sample = juce::jlimit(-2.0f, 2.0f, dry * (1.0f - amount) + shaped * amount);
 }
 
 void WaveshaperEngine::setAmount(float a) { amount = a; }

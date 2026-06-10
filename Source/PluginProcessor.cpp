@@ -55,7 +55,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SchranzMachineProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("filterCutoff", "Cutoff",
         juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.25f), 20000.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("filterResonance", "Resonance",
-        juce::NormalisableRange<float>(0.1f, 20.0f, 0.01f, 0.3f), 0.707f));
+        juce::NormalisableRange<float>(0.1f, 10.0f, 0.01f, 0.3f), 0.707f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("filterEnvAmount", "Filter Env",
         -1.0f, 1.0f, 0.0f));
 
@@ -82,7 +82,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SchranzMachineProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("compRelease", "Comp Release",
         juce::NormalisableRange<float>(10.0f, 500.0f, 1.0f, 0.4f), 50.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("compMakeup", "Comp Makeup",
-        juce::NormalisableRange<float>(0.0f, 24.0f, 0.1f), 0.0f));
+        juce::NormalisableRange<float>(0.0f, 12.0f, 0.1f), 0.0f));
 
     // Chorus
     params.push_back(std::make_unique<juce::AudioParameterFloat>("chorusRate", "Chorus Rate",

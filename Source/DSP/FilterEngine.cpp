@@ -39,21 +39,33 @@ float FilterEngine::process(float input)
     float modulatedCutoff = cutoff + envelopeAmount * envelopeValue * 10000.0f;
     modulatedCutoff = juce::jlimit(20.0f, 20000.0f, modulatedCutoff);
 
+    float safeRes = juce::jlimit(0.1f, 10.0f, resonance);
     f = 2.0f * std::sin(juce::MathConstants<float>::pi * modulatedCutoff / static_cast<float>(sampleRate));
-    q = 1.0f / resonance;
+    f = juce::jlimit(0.0f, 0.9f, f);
+    q = 1.0f / safeRes;
 
     hp = input - lp - q * bp;
     bp += f * hp;
     lp += f * bp;
 
+    lp = juce::jlimit(-4.0f, 4.0f, lp);
+    bp = juce::jlimit(-4.0f, 4.0f, bp);
+    hp = juce::jlimit(-4.0f, 4.0f, hp);
+
+    if (!std::isfinite(lp)) lp = 0.0f;
+    if (!std::isfinite(bp)) bp = 0.0f;
+    if (!std::isfinite(hp)) hp = 0.0f;
+
+    float out;
     switch (type)
     {
-        case FilterType::LowPass:  return lp;
-        case FilterType::HighPass: return hp;
-        case FilterType::BandPass: return bp;
-        case FilterType::Notch:    return lp + hp;
+        case FilterType::LowPass:  out = lp; break;
+        case FilterType::HighPass: out = hp; break;
+        case FilterType::BandPass: out = bp; break;
+        case FilterType::Notch:    out = lp + hp; break;
+        default: out = input; break;
     }
-    return input;
+    return juce::jlimit(-4.0f, 4.0f, out);
 }
 
 void FilterEngine::reset()

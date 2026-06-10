@@ -11,7 +11,8 @@ void DistortionEngine::prepare(double sr)
 
 float DistortionEngine::process(float input)
 {
-    float driven = input * drive;
+    if (!std::isfinite(input)) return 0.0f;
+    float driven = juce::jlimit(-30.0f, 30.0f, input * drive);
     float distorted = 0.0f;
 
     switch (type)
@@ -51,14 +52,15 @@ float DistortionEngine::softClip(float input)
 
 float DistortionEngine::foldback(float input)
 {
-    while (input > 1.0f || input < -1.0f)
+    int maxIter = 32;
+    while ((input > 1.0f || input < -1.0f) && --maxIter > 0)
     {
         if (input > 1.0f)
             input = 2.0f - input;
         else if (input < -1.0f)
             input = -2.0f - input;
     }
-    return input;
+    return juce::jlimit(-1.0f, 1.0f, input);
 }
 
 float DistortionEngine::bitCrush(float input)
@@ -67,22 +69,22 @@ float DistortionEngine::bitCrush(float input)
     if (holdCounter >= downsampleRate)
     {
         holdCounter = 0.0f;
+        float clamped = juce::jlimit(-1.0f, 1.0f, input);
         float levels = std::pow(2.0f, bitDepth);
-        holdSample = std::round(input * levels) / levels;
+        holdSample = std::round(clamped * levels) / levels;
     }
     return holdSample;
 }
 
 float DistortionEngine::rectify(float input)
 {
-    return std::abs(input);
+    return juce::jlimit(0.0f, 1.0f, std::abs(input));
 }
 
 float DistortionEngine::scream(float input)
 {
-    // Asymmetric waveshaping for harsh industrial character
     float shaped = std::tanh(input * 3.0f);
     shaped = hardClip(shaped * 2.0f);
     float folded = foldback(input * 1.5f);
-    return shaped * 0.7f + folded * 0.3f;
+    return juce::jlimit(-1.0f, 1.0f, shaped * 0.7f + folded * 0.3f);
 }

@@ -101,10 +101,11 @@ void SchranzVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer,
         float osc2Sample = osc2.process() * osc2Level;
         float smpSample = sampleEngine.process() * sampleLevel;
 
-        float mixed = osc1Sample + osc2Sample + smpSample;
+        float mixed = juce::jlimit(-2.0f, 2.0f, osc1Sample + osc2Sample + smpSample);
         float distorted = distortion.process(mixed);
+        distorted = juce::jlimit(-2.0f, 2.0f, distorted);
         float filtered = filter.process(distorted);
-        float output = filtered * ampEnvValue * masterGain;
+        float output = juce::jlimit(-1.0f, 1.0f, filtered) * ampEnvValue * masterGain;
 
         for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel)
             outputBuffer.addSample(channel, startSample + sample, output);
