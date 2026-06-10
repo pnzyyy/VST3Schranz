@@ -1427,18 +1427,72 @@ inline juce::Array<PresetData> createAll()
         0.3f, 2));
 
     // ---- Procedurally generated categories ----
+    int before = presets.size();
     generateKicks(presets, 50);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Kicks";
+
+    before = presets.size();
     generateBass(presets, 60);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Bass";
+
+    before = presets.size();
     generateLeads(presets, 60);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Leads";
+
+    before = presets.size();
     generateStabs(presets, 50);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Stabs";
+
+    before = presets.size();
     generatePads(presets, 40);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Pads";
+
+    before = presets.size();
     generateAcid(presets, 50);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Acid";
+
+    before = presets.size();
     generateIndustrial(presets, 50);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Industrial";
+
+    before = presets.size();
     generateFX(presets, 40);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "FX";
+
+    before = presets.size();
     generatePercussion(presets, 40);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Percussion";
+
+    before = presets.size();
     generateScream(presets, 40);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Scream";
+
+    before = presets.size();
     generateDarkAmbient(presets, 30);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Dark Ambient";
+
+    before = presets.size();
     generateExperimental(presets, 30);
+    for (int i = before; i < presets.size(); ++i) presets.getReference(i).category = "Experimental";
+
+    // Tag the original 12 hand-crafted presets by name
+    auto tagPreset = [&](const juce::String& name, const juce::String& cat) {
+        for (int i = 0; i < presets.size(); ++i)
+            if (presets.getReference(i).name == name)
+                presets.getReference(i).category = cat;
+    };
+    tagPreset("Demolition Kick", "Kicks");
+    tagPreset("Industrial Hammer", "Kicks");
+    tagPreset("Piledriver", "Kicks");
+    tagPreset("Acid Scream", "Acid");
+    tagPreset("Razor Lead", "Leads");
+    tagPreset("Punishment Bass", "Bass");
+    tagPreset("Warehouse Stab", "Stabs");
+    tagPreset("Concrete Texture", "FX");
+    tagPreset("Bit Rot", "Industrial");
+    tagPreset("Broken Machine", "Industrial");
+    tagPreset("Feedback Loop", "FX");
+    tagPreset("Sample Mangler", "FX");
 
     return presets;
 }

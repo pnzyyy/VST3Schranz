@@ -83,6 +83,22 @@ private:
     juce::TextButton nextPresetBtn{">"};
     juce::Label presetNameLabel;
 
+    // Preset browser
+    juce::ComboBox presetCategoryBox;
+    juce::ComboBox presetNameBox;
+    juce::Label presetCategoryLabel{"", "CATEGORY"};
+    juce::Label presetBrowserLabel{"", "PRESET"};
+
+    // MIDI Pattern rack
+    juce::ComboBox patternCategoryBox;
+    juce::ComboBox patternNameBox;
+    juce::TextButton patternPlayBtn{"PLAY"};
+    juce::Slider patternBpmSlider;
+    juce::Label patternCategoryLabel{"", "MIDI"};
+    juce::Label patternNameLabelUI{"", "PATTERN"};
+    juce::Label patternBpmLabel{"", "BPM"};
+    SectionPanel patternRackSection{"MIDI PATTERN RACK"};
+
     // Section panels
     SectionPanel oscSection{"OSCILLATORS"};
     SectionPanel sampleSection{"SAMPLE"};
@@ -190,6 +206,10 @@ private:
     void setupKnobLabel(juce::Label& label);
     void setupSectionLabel(juce::Label& label);
     void updatePresetLabel();
+    void refreshPresetCategoryList();
+    void refreshPresetNameList();
+    void refreshPatternCategoryList();
+    void refreshPatternNameList();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SchranzMachineEditor)
 };

@@ -62,6 +62,34 @@ juce::StringArray PresetManager::getPresetNames() const
     return names;
 }
 
+juce::String PresetManager::getPresetCategory(int index) const
+{
+    if (index >= 0 && index < presets.size())
+        return presets[index].category;
+    return {};
+}
+
+juce::StringArray PresetManager::getCategoryNames() const
+{
+    juce::StringArray cats;
+    cats.add("All");
+    for (auto& p : presets)
+        if (!cats.contains(p.category) && p.category.isNotEmpty())
+            cats.add(p.category);
+    return cats;
+}
+
+juce::Array<int> PresetManager::getPresetIndicesInCategory(const juce::String& category) const
+{
+    juce::Array<int> indices;
+    for (int i = 0; i < presets.size(); ++i)
+    {
+        if (category == "All" || presets[i].category == category)
+            indices.add(i);
+    }
+    return indices;
+}
+
 void PresetManager::nextPreset()
 {
     if (presets.size() > 0)

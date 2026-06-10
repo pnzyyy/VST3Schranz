@@ -3,6 +3,7 @@
 #include "DSP/SchranzSynth.h"
 #include "DSP/EffectsEngine.h"
 #include "Presets/PresetManager.h"
+#include "Presets/MidiPatternBank.h"
 
 class SchranzMachineProcessor : public juce::AudioProcessor
 {
@@ -38,9 +39,18 @@ public:
     PresetManager& getPresetManager() { return presetManager; }
     SchranzSynth& getSchranzSynth() { return schranzSynth; }
     juce::MidiKeyboardState& getKeyboardState() { return keyboardState; }
+    MidiPatternBank& getPatternBank() { return patternBank; }
 
     void loadSample(const juce::File& file);
     juce::String getLoadedSampleName() const { return loadedSampleName; }
+
+    // MIDI pattern playback
+    void startPatternPlayback(int patternIndex);
+    void stopPatternPlayback();
+    bool isPatternPlaying() const { return patternPlaying.load(); }
+    int getCurrentPatternIndex() const { return currentPatternIndex.load(); }
+    void setPatternBpm(float bpm) { patternBpm.store(bpm); }
+    float getPatternBpm() const { return patternBpm.load(); }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -61,6 +71,14 @@ private:
 
     juce::String loadedSampleName;
     juce::String loadedSamplePath;
+
+    MidiPatternBank patternBank;
+    std::atomic<bool> patternPlaying { false };
+    std::atomic<int> currentPatternIndex { 0 };
+    std::atomic<float> patternBpm { 140.0f };
+    double patternPositionSamples = 0.0;
+    std::vector<bool> patternNotesTriggered;
+    std::vector<int> activePatternNotes;
 
     void updateVoiceParameters();
     void updateEffectParameters();

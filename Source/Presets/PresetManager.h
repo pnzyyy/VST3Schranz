@@ -4,6 +4,7 @@
 struct PresetData
 {
     juce::String name;
+    juce::String category;
     juce::ValueTree state;
 };
 
@@ -18,8 +19,11 @@ public:
 
     int getNumPresets() const;
     juce::String getPresetName(int index) const;
+    juce::String getPresetCategory(int index) const;
     int getCurrentPresetIndex() const { return currentIndex; }
     juce::StringArray getPresetNames() const;
+    juce::StringArray getCategoryNames() const;
+    juce::Array<int> getPresetIndicesInCategory(const juce::String& category) const;
 
     void nextPreset();
     void previousPreset();

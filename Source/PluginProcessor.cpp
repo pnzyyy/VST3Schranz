@@ -160,6 +160,64 @@ void SchranzMachineProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
     keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(), true);
 
+    // MIDI pattern playback
+    if (patternPlaying.load() && patternBank.getNumPatterns() > 0)
+    {
+        int idx = juce::jlimit(0, patternBank.getNumPatterns() - 1, currentPatternIndex.load());
+        const auto& pattern = patternBank.getPattern(idx);
+        double bpm = juce::jmax(40.0f, patternBpm.load());
+        double samplesPerBeat = (60.0 / bpm) * getSampleRate();
+        double patternLengthSamples = pattern.lengthInBeats * samplesPerBeat;
+        int numSamples = buffer.getNumSamples();
+
+        if (patternNotesTriggered.size() != pattern.notes.size())
+            patternNotesTriggered.assign(pattern.notes.size(), false);
+
+        for (int s = 0; s < numSamples; ++s)
+        {
+            double currentBeat = patternPositionSamples / samplesPerBeat;
+
+            for (size_t n = 0; n < pattern.notes.size(); ++n)
+            {
+                if (!patternNotesTriggered[n] && currentBeat >= pattern.notes[n].startBeat)
+                {
+                    int note = juce::jlimit(0, 127, pattern.notes[n].noteNumber);
+                    int vel = juce::jlimit(1, 127, pattern.notes[n].velocity);
+                    midiMessages.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)vel), s);
+                    activePatternNotes.push_back(note);
+                    patternNotesTriggered[n] = true;
+                }
+                if (patternNotesTriggered[n])
+                {
+                    double endBeat = pattern.notes[n].startBeat + pattern.notes[n].duration;
+                    if (currentBeat >= endBeat)
+                    {
+                        int note = juce::jlimit(0, 127, pattern.notes[n].noteNumber);
+                        for (auto it = activePatternNotes.begin(); it != activePatternNotes.end(); ++it)
+                        {
+                            if (*it == note)
+                            {
+                                midiMessages.addEvent(juce::MidiMessage::noteOff(1, note), s);
+                                activePatternNotes.erase(it);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            patternPositionSamples += 1.0;
+            if (patternPositionSamples >= patternLengthSamples)
+            {
+                patternPositionSamples = 0.0;
+                for (int activeNote : activePatternNotes)
+                    midiMessages.addEvent(juce::MidiMessage::noteOff(1, activeNote), s);
+                activePatternNotes.clear();
+                std::fill(patternNotesTriggered.begin(), patternNotesTriggered.end(), false);
+            }
+        }
+    }
+
     updateVoiceParameters();
     updateEffectParameters();
     schranzSynth.processBlock(buffer, midiMessages);
@@ -334,6 +392,26 @@ void SchranzMachineProcessor::loadSample(const juce::File& file)
         loadedSampleName = file.getFileNameWithoutExtension();
         loadedSamplePath = file.getFullPathName();
     }
+}
+
+void SchranzMachineProcessor::startPatternPlayback(int patternIndex)
+{
+    if (patternIndex < 0 || patternIndex >= patternBank.getNumPatterns()) return;
+    currentPatternIndex.store(patternIndex);
+    patternPositionSamples = 0.0;
+    patternNotesTriggered.assign(patternBank.getPattern(patternIndex).notes.size(), false);
+    activePatternNotes.clear();
+    patternPlaying.store(true);
+}
+
+void SchranzMachineProcessor::stopPatternPlayback()
+{
+    patternPlaying.store(false);
+    // Note-offs will be sent on next processBlock via keyboardState? No, we need explicit cleanup.
+    // Send note-offs directly through keyboard state for active notes
+    for (int note : activePatternNotes)
+        keyboardState.noteOff(1, note, 0.0f);
+    activePatternNotes.clear();
 }
 
 juce::AudioProcessorEditor* SchranzMachineProcessor::createEditor()

@@ -212,7 +212,7 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
       dragDropArea(p)
 {
     setLookAndFeel(&schranzLnf);
-    setSize(960, 860);
+    setSize(1000, 940);
 
     // Keyboard setup — 5 octaves from C1 to C6
     keyboard.setAvailableRange(24, 96);
@@ -234,8 +234,71 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
     presetNameLabel.setFont(juce::Font(14.0f).boldened());
     presetNameLabel.setColour(juce::Label::textColourId, juce::Colour(SchranzLookAndFeel::kAccent));
     updatePresetLabel();
-    prevPresetBtn.onClick = [this] { processorRef.getPresetManager().previousPreset(); updatePresetLabel(); };
-    nextPresetBtn.onClick = [this] { processorRef.getPresetManager().nextPreset(); updatePresetLabel(); };
+    prevPresetBtn.onClick = [this] {
+        processorRef.getPresetManager().previousPreset();
+        updatePresetLabel();
+        refreshPresetCategoryList();
+        refreshPresetNameList();
+    };
+    nextPresetBtn.onClick = [this] {
+        processorRef.getPresetManager().nextPreset();
+        updatePresetLabel();
+        refreshPresetCategoryList();
+        refreshPresetNameList();
+    };
+
+    // Preset browser
+    addAndMakeVisible(presetCategoryLabel); setupSectionLabel(presetCategoryLabel);
+    addAndMakeVisible(presetBrowserLabel); setupSectionLabel(presetBrowserLabel);
+    addAndMakeVisible(presetCategoryBox);
+    addAndMakeVisible(presetNameBox);
+    refreshPresetCategoryList();
+    refreshPresetNameList();
+    presetCategoryBox.onChange = [this] { refreshPresetNameList(); };
+    presetNameBox.onChange = [this] {
+        int presetIdx = presetNameBox.getSelectedId() - 1;
+        if (presetIdx >= 0 && presetIdx < processorRef.getPresetManager().getNumPresets())
+        {
+            processorRef.getPresetManager().loadPreset(presetIdx);
+            updatePresetLabel();
+        }
+    };
+
+    // MIDI Pattern rack
+    addAndMakeVisible(patternRackSection);
+    addAndMakeVisible(patternCategoryLabel); setupSectionLabel(patternCategoryLabel);
+    addAndMakeVisible(patternNameLabelUI); setupSectionLabel(patternNameLabelUI);
+    addAndMakeVisible(patternBpmLabel); setupSectionLabel(patternBpmLabel);
+    addAndMakeVisible(patternCategoryBox);
+    addAndMakeVisible(patternNameBox);
+    addAndMakeVisible(patternPlayBtn);
+    addAndMakeVisible(patternBpmSlider);
+    patternBpmSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    patternBpmSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 14);
+    patternBpmSlider.setRange(60.0, 200.0, 1.0);
+    patternBpmSlider.setValue(140.0);
+    patternBpmSlider.onValueChange = [this] {
+        processorRef.setPatternBpm(static_cast<float>(patternBpmSlider.getValue()));
+    };
+    refreshPatternCategoryList();
+    refreshPatternNameList();
+    patternCategoryBox.onChange = [this] { refreshPatternNameList(); };
+    patternPlayBtn.onClick = [this] {
+        if (processorRef.isPatternPlaying())
+        {
+            processorRef.stopPatternPlayback();
+            patternPlayBtn.setButtonText("PLAY");
+        }
+        else
+        {
+            int patIdx = patternNameBox.getSelectedId() - 1;
+            if (patIdx >= 0 && patIdx < processorRef.getPatternBank().getNumPatterns())
+            {
+                processorRef.startPatternPlayback(patIdx);
+                patternPlayBtn.setButtonText("STOP");
+            }
+        }
+    };
 
     // Section panels
     for (auto* panel : { &oscSection, &sampleSection, &envSection, &distSection, &crushSection,
@@ -399,7 +462,79 @@ void SchranzMachineEditor::setupSectionLabel(juce::Label& label)
 void SchranzMachineEditor::updatePresetLabel()
 {
     auto& pm = processorRef.getPresetManager();
-    presetNameLabel.setText(pm.getPresetName(pm.getCurrentPresetIndex()), juce::dontSendNotification);
+    int idx = pm.getCurrentPresetIndex();
+    juce::String cat = pm.getPresetCategory(idx);
+    juce::String text = pm.getPresetName(idx);
+    if (cat.isNotEmpty()) text += "  [" + cat + "]";
+    presetNameLabel.setText(text, juce::dontSendNotification);
+}
+
+void SchranzMachineEditor::refreshPresetCategoryList()
+{
+    auto& pm = processorRef.getPresetManager();
+    auto cats = pm.getCategoryNames();
+    juce::String currentSel = presetCategoryBox.getText();
+    presetCategoryBox.clear(juce::dontSendNotification);
+    for (int i = 0; i < cats.size(); ++i)
+        presetCategoryBox.addItem(cats[i], i + 1);
+    if (presetCategoryBox.getNumItems() > 0)
+    {
+        juce::String currentCat = pm.getPresetCategory(pm.getCurrentPresetIndex());
+        int found = cats.indexOf(currentCat);
+        if (found < 0) found = 0;
+        presetCategoryBox.setSelectedId(found + 1, juce::dontSendNotification);
+    }
+}
+
+void SchranzMachineEditor::refreshPresetNameList()
+{
+    auto& pm = processorRef.getPresetManager();
+    juce::String category = presetCategoryBox.getText();
+    if (category.isEmpty()) category = "All";
+    auto indices = pm.getPresetIndicesInCategory(category);
+    presetNameBox.clear(juce::dontSendNotification);
+    for (auto idx : indices)
+        presetNameBox.addItem(pm.getPresetName(idx), idx + 1);
+    int currentIdx = pm.getCurrentPresetIndex();
+    if (indices.contains(currentIdx))
+        presetNameBox.setSelectedId(currentIdx + 1, juce::dontSendNotification);
+    else if (presetNameBox.getNumItems() > 0)
+        presetNameBox.setSelectedItemIndex(0, juce::dontSendNotification);
+}
+
+void SchranzMachineEditor::refreshPatternCategoryList()
+{
+    auto& pb = processorRef.getPatternBank();
+    auto cats = pb.getCategoryNames();
+    patternCategoryBox.clear(juce::dontSendNotification);
+    juce::StringArray allCats;
+    allCats.add("All");
+    for (int i = 0; i < cats.size(); ++i)
+        allCats.add(cats[i]);
+    for (int i = 0; i < allCats.size(); ++i)
+        patternCategoryBox.addItem(allCats[i], i + 1);
+    if (patternCategoryBox.getNumItems() > 0)
+        patternCategoryBox.setSelectedItemIndex(0, juce::dontSendNotification);
+}
+
+void SchranzMachineEditor::refreshPatternNameList()
+{
+    auto& pb = processorRef.getPatternBank();
+    juce::String category = patternCategoryBox.getText();
+    patternNameBox.clear(juce::dontSendNotification);
+    if (category == "All" || category.isEmpty())
+    {
+        for (int i = 0; i < pb.getNumPatterns(); ++i)
+            patternNameBox.addItem(pb.getPattern(i).name, i + 1);
+    }
+    else
+    {
+        auto indices = pb.getPatternsInCategory(category);
+        for (auto idx : indices)
+            patternNameBox.addItem(pb.getPattern(idx).name, idx + 1);
+    }
+    if (patternNameBox.getNumItems() > 0)
+        patternNameBox.setSelectedItemIndex(0, juce::dontSendNotification);
 }
 
 void SchranzMachineEditor::paint(juce::Graphics& g)
@@ -424,7 +559,7 @@ void SchranzMachineEditor::paint(juce::Graphics& g)
     g.fillRect(0.0f, 40.0f, static_cast<float>(getWidth()), 2.0f);
 
     // Master label
-    auto masterArea = getLocalBounds().removeFromBottom(97).removeFromTop(30).toFloat().reduced(10, 0);
+    auto masterArea = getLocalBounds().removeFromBottom(159).removeFromTop(30).toFloat().reduced(10, 0);
     g.setColour(juce::Colour(SchranzLookAndFeel::kTextDim));
     g.setFont(juce::Font(10.0f).boldened());
     g.drawText("MASTER", masterArea.removeFromLeft(60), juce::Justification::centredLeft);
@@ -438,17 +573,43 @@ void SchranzMachineEditor::resized()
     auto titleBar = area.removeFromTop(42);
     (void)titleBar;
 
-    // Preset bar
+    // Preset bar (browser: prev | category | name | next | label)
     auto presetBar = area.removeFromTop(28).reduced(8, 2);
-    prevPresetBtn.setBounds(presetBar.removeFromLeft(28));
-    nextPresetBtn.setBounds(presetBar.removeFromRight(28));
-    presetNameLabel.setBounds(presetBar);
+    prevPresetBtn.setBounds(presetBar.removeFromLeft(26));
+    presetBar.removeFromLeft(4);
+    presetCategoryLabel.setBounds(presetBar.removeFromLeft(60));
+    presetCategoryBox.setBounds(presetBar.removeFromLeft(120));
+    presetBar.removeFromLeft(6);
+    presetBrowserLabel.setBounds(presetBar.removeFromLeft(50));
+    presetCategoryBox.setBounds(presetCategoryBox.getBounds());
+    nextPresetBtn.setBounds(presetBar.removeFromRight(26));
+    presetBar.removeFromRight(4);
+    presetNameLabel.setBounds(presetBar.removeFromRight(220));
+    presetBar.removeFromRight(6);
+    presetNameBox.setBounds(presetBar);
 
     // Keyboard at bottom (5 octaves C1-C6, 65px tall)
     auto keyboardArea = area.removeFromBottom(65);
     keyboard.setBounds(keyboardArea);
 
-    // Master slider above keyboard
+    // MIDI Pattern rack above keyboard (60 px tall)
+    auto patternRack = area.removeFromBottom(64).reduced(6, 2);
+    patternRackSection.setBounds(patternRack);
+    {
+        auto content = patternRackSection.getContentArea().reduced(4, 2);
+        patternCategoryLabel.setBounds(content.removeFromLeft(50));
+        patternCategoryBox.setBounds(content.removeFromLeft(110));
+        content.removeFromLeft(6);
+        patternNameLabelUI.setBounds(content.removeFromLeft(60));
+        patternNameBox.setBounds(content.removeFromLeft(220));
+        content.removeFromLeft(8);
+        patternPlayBtn.setBounds(content.removeFromLeft(70).reduced(0, 2));
+        content.removeFromLeft(10);
+        patternBpmLabel.setBounds(content.removeFromLeft(34));
+        patternBpmSlider.setBounds(content.removeFromLeft(80));
+    }
+
+    // Master slider above MIDI rack
     auto masterBar = area.removeFromBottom(30).reduced(70, 4);
     masterSlider.setBounds(masterBar);
 
