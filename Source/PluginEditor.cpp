@@ -212,6 +212,8 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
       dragDropArea(p)
 {
     setLookAndFeel(&schranzLnf);
+    setResizable(true, true);
+    setResizeLimits(800, 700, 1600, 1200);
     setSize(1000, 940);
 
     // Keyboard setup — 5 octaves from C1 to C6
@@ -261,6 +263,7 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
         {
             processorRef.getPresetManager().loadPreset(presetIdx);
             updatePresetLabel();
+            refreshSuggestions();
         }
     };
 
@@ -282,7 +285,7 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
     };
     refreshPatternCategoryList();
     refreshPatternNameList();
-    patternCategoryBox.onChange = [this] { refreshPatternNameList(); };
+    patternCategoryBox.onChange = [this] { refreshPatternNameList(); refreshSuggestions(); };
     patternPlayBtn.onClick = [this] {
         if (processorRef.isPatternPlaying())
         {
@@ -299,6 +302,45 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
             }
         }
     };
+
+    // AI Suggestions
+    suggestionEngine = std::make_unique<SuggestionEngine>(processorRef.getPresetManager(),
+                                                          processorRef.getPatternBank());
+    addAndMakeVisible(suggestSection);
+    for (int i = 0; i < 8; ++i)
+    {
+        auto* btn = new juce::TextButton("");
+        btn->setColour(juce::TextButton::buttonColourId, juce::Colour(SchranzLookAndFeel::kBgSection));
+        btn->setColour(juce::TextButton::textColourOffId, juce::Colour(SchranzLookAndFeel::kTextBright));
+        addAndMakeVisible(btn);
+        suggestionBtns.add(btn);
+        btn->onClick = [this, i] {
+            if (i >= suggestionBtns.size()) return;
+            auto text = suggestionBtns[i]->getButtonText();
+            if (text.isEmpty()) return;
+            auto suggestions = suggestionEngine->getSuggestions(
+                processorRef.getPresetManager().getCurrentPresetIndex(),
+                patternNameBox.getSelectedId() - 1);
+            if (i < static_cast<int>(suggestions.size()))
+            {
+                auto& s = suggestions[static_cast<size_t>(i)];
+                if (s.isPattern && s.patternIndex >= 0)
+                {
+                    processorRef.startPatternPlayback(s.patternIndex);
+                    patternPlayBtn.setButtonText("STOP");
+                    patternNameBox.setSelectedId(s.patternIndex + 1, juce::sendNotification);
+                }
+                else if (s.presetIndex >= 0)
+                {
+                    processorRef.getPresetManager().loadPreset(s.presetIndex);
+                    updatePresetLabel();
+                    refreshPresetNameList();
+                }
+                refreshSuggestions();
+            }
+        };
+    }
+    refreshSuggestions();
 
     // Section panels
     for (auto* panel : { &oscSection, &sampleSection, &envSection, &distSection, &crushSection,
@@ -517,6 +559,28 @@ void SchranzMachineEditor::refreshPatternCategoryList()
         patternCategoryBox.setSelectedItemIndex(0, juce::dontSendNotification);
 }
 
+void SchranzMachineEditor::refreshSuggestions()
+{
+    if (!suggestionEngine) return;
+    auto suggestions = suggestionEngine->getSuggestions(
+        processorRef.getPresetManager().getCurrentPresetIndex(),
+        patternNameBox.getSelectedId() - 1);
+
+    for (int i = 0; i < suggestionBtns.size(); ++i)
+    {
+        if (i < static_cast<int>(suggestions.size()))
+        {
+            suggestionBtns[i]->setButtonText(suggestions[static_cast<size_t>(i)].label);
+            suggestionBtns[i]->setVisible(true);
+        }
+        else
+        {
+            suggestionBtns[i]->setButtonText("");
+            suggestionBtns[i]->setVisible(false);
+        }
+    }
+}
+
 void SchranzMachineEditor::refreshPatternNameList()
 {
     auto& pb = processorRef.getPatternBank();
@@ -539,30 +603,50 @@ void SchranzMachineEditor::refreshPatternNameList()
 
 void SchranzMachineEditor::paint(juce::Graphics& g)
 {
-    // Background gradient
+    auto bounds = getLocalBounds().toFloat();
+    float w = bounds.getWidth();
+    float h = bounds.getHeight();
+
+    // Dark gradient background with subtle radial highlight
     g.setGradientFill(juce::ColourGradient(
-        juce::Colour(0xFF0D0D0D), 0.0f, 0.0f,
-        juce::Colour(0xFF080808), 0.0f, static_cast<float>(getHeight()), false));
+        juce::Colour(0xFF101010), w * 0.5f, h * 0.3f,
+        juce::Colour(0xFF060606), 0.0f, h, true));
     g.fillAll();
 
-    // Title bar
-    auto titleArea = getLocalBounds().removeFromTop(40).toFloat();
-    g.setColour(juce::Colour(SchranzLookAndFeel::kBgPanel));
+    // Subtle grid pattern for depth
+    g.setColour(juce::Colour(0x05FFFFFF));
+    for (float y = 0; y < h; y += 20.0f)
+        g.drawHorizontalLine(static_cast<int>(y), 0.0f, w);
+
+    // Title bar with gradient
+    auto titleArea = bounds.removeFromTop(42.0f);
+    g.setGradientFill(juce::ColourGradient(
+        juce::Colour(0xFF151515), 0.0f, titleArea.getY(),
+        juce::Colour(0xFF0C0C0C), 0.0f, titleArea.getBottom(), false));
+    g.fillRect(titleArea);
+
+    // Title glow
+    g.setColour(juce::Colour(SchranzLookAndFeel::kAccent).withAlpha(0.08f));
     g.fillRect(titleArea);
 
     g.setColour(juce::Colour(SchranzLookAndFeel::kAccent));
-    g.setFont(juce::Font(20.0f).boldened());
-    g.drawText("SCHRANZ MACHINE", titleArea.reduced(10, 0), juce::Justification::centredLeft);
+    g.setFont(juce::Font(22.0f).boldened());
+    g.drawText("SCHRANZ MACHINE", titleArea.reduced(12, 0), juce::Justification::centredLeft);
 
-    // Accent line under title
+    g.setColour(juce::Colour(SchranzLookAndFeel::kTextDim));
+    g.setFont(juce::Font(10.0f));
+    g.drawText("v2.0  |  552 Presets  |  114 MIDI Patterns", titleArea.reduced(12, 0), juce::Justification::centredRight);
+
+    // Accent line under title with glow
     g.setColour(juce::Colour(SchranzLookAndFeel::kAccent));
-    g.fillRect(0.0f, 40.0f, static_cast<float>(getWidth()), 2.0f);
+    g.fillRect(0.0f, 42.0f, w, 2.0f);
+    g.setColour(juce::Colour(SchranzLookAndFeel::kAccent).withAlpha(0.12f));
+    g.fillRect(0.0f, 42.0f, w, 6.0f);
 
     // Master label
-    auto masterArea = getLocalBounds().removeFromBottom(159).removeFromTop(30).toFloat().reduced(10, 0);
     g.setColour(juce::Colour(SchranzLookAndFeel::kTextDim));
     g.setFont(juce::Font(10.0f).boldened());
-    g.drawText("MASTER", masterArea.removeFromLeft(60), juce::Justification::centredLeft);
+    g.drawText("MASTER", masterSlider.getBounds().withWidth(60).translated(-64, 0).toFloat(), juce::Justification::centredRight);
 }
 
 void SchranzMachineEditor::resized()
@@ -609,14 +693,33 @@ void SchranzMachineEditor::resized()
         patternBpmSlider.setBounds(content.removeFromLeft(80));
     }
 
-    // Master slider above MIDI rack
-    auto masterBar = area.removeFromBottom(30).reduced(70, 4);
+    // AI Suggestions above MIDI rack
+    auto suggestArea = area.removeFromBottom(56).reduced(6, 2);
+    suggestSection.setBounds(suggestArea);
+    {
+        auto content = suggestSection.getContentArea().reduced(4, 1);
+        int btnW = content.getWidth() / 4;
+        int btnH = content.getHeight() / 2;
+        for (int i = 0; i < suggestionBtns.size(); ++i)
+        {
+            int col = i % 4;
+            int row = i / 4;
+            suggestionBtns[i]->setBounds(content.getX() + col * btnW + 2,
+                                          content.getY() + row * btnH + 1,
+                                          btnW - 4, btnH - 2);
+        }
+    }
+
+    // Master slider
+    auto masterBar = area.removeFromBottom(28).reduced(70, 2);
     masterSlider.setBounds(masterBar);
 
-    auto main = area.reduced(6, 4);
+    auto main = area.reduced(6, 3);
 
-    // Row 1: Oscillators + Sample + Envelope (height 140)
-    auto row1 = main.removeFromTop(140);
+    int rowHeight = juce::jmax(100, main.getHeight() / 4);
+
+    // Row 1: Oscillators + Sample + Envelope
+    auto row1 = main.removeFromTop(rowHeight);
     int row1W = row1.getWidth();
     oscSection.setBounds(row1.removeFromLeft(row1W * 45 / 100).reduced(2));
     sampleSection.setBounds(row1.removeFromLeft(row1W * 25 / 100).reduced(2));
@@ -671,8 +774,8 @@ void SchranzMachineEditor::resized()
 
     main.removeFromTop(4);
 
-    // Row 2: Distortion + Crusher + Filter (height 130)
-    auto row2 = main.removeFromTop(130);
+    // Row 2: Distortion + Crusher + Filter
+    auto row2 = main.removeFromTop(rowHeight);
     int row2W = row2.getWidth();
     distSection.setBounds(row2.removeFromLeft(row2W / 3).reduced(2));
     crushSection.setBounds(row2.removeFromLeft(row2W / 3).reduced(2));
@@ -717,8 +820,8 @@ void SchranzMachineEditor::resized()
 
     main.removeFromTop(4);
 
-    // Row 3: Delay + Reverb + Compressor + Chorus (height 130)
-    auto row3 = main.removeFromTop(130);
+    // Row 3: Delay + Reverb + Compressor + Chorus
+    auto row3 = main.removeFromTop(rowHeight);
     int row3W = row3.getWidth();
     delaySection.setBounds(row3.removeFromLeft(row3W / 4).reduced(2));
     reverbSection.setBounds(row3.removeFromLeft(row3W / 4).reduced(2));
@@ -786,8 +889,8 @@ void SchranzMachineEditor::resized()
 
     main.removeFromTop(4);
 
-    // Row 4: Phaser + EQ + Ring Mod + Waveshaper (height 120)
-    auto row4 = main.removeFromTop(120);
+    // Row 4: Phaser + EQ + Ring Mod + Waveshaper
+    auto row4 = main.removeFromTop(rowHeight);
     int row4W = row4.getWidth();
     phaserSection.setBounds(row4.removeFromLeft(row4W / 4).reduced(2));
     eqSection.setBounds(row4.removeFromLeft(row4W / 4).reduced(2));

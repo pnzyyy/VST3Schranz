@@ -54,6 +54,7 @@ target_sources(SchranzMachine
         Source/Presets/FactoryPresets.h
         Source/Presets/MidiPatternBank.cpp
         Source/Presets/MidiPatternBank.h
+        Source/Presets/SuggestionEngine.h
 )
 
 juce_generate_juce_header(SchranzMachine)

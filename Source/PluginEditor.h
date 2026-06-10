@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "Presets/SuggestionEngine.h"
 
 class SchranzLookAndFeel : public juce::LookAndFeel_V4
 {
@@ -69,6 +70,11 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
 
+    // AI suggestions
+    juce::OwnedArray<juce::TextButton> suggestionBtns;
+    SectionPanel suggestSection{"AI SUGGESTIONS"};
+    void refreshSuggestions();
+
 private:
     void timerCallback() override;
 
@@ -98,6 +104,7 @@ private:
     juce::Label patternNameLabelUI{"", "PATTERN"};
     juce::Label patternBpmLabel{"", "BPM"};
     SectionPanel patternRackSection{"MIDI PATTERN RACK"};
+    std::unique_ptr<SuggestionEngine> suggestionEngine;
 
     // Section panels
     SectionPanel oscSection{"OSCILLATORS"};
