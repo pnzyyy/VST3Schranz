@@ -27,6 +27,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout SchranzMachineProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc2Gain", "Osc 2 Gain", 0.0f, 1.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("osc2Detune", "Osc 2 Detune", -100.0f, 100.0f, 0.0f));
 
+    // Unison (applies to both oscillators — supersaw character)
+    params.push_back(std::make_unique<juce::AudioParameterInt>("unisonVoices", "Unison", 1, 8, 1));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("unisonDetune", "Unison Detune",
+        juce::NormalisableRange<float>(0.0f, 50.0f, 0.1f), 15.0f));
+
     // Amp Envelope
     params.push_back(std::make_unique<juce::AudioParameterFloat>("ampAttack", "Attack",
         juce::NormalisableRange<float>(0.001f, 2.0f, 0.001f, 0.3f), 0.005f));
@@ -289,6 +294,9 @@ void SchranzMachineProcessor::updateVoiceParameters()
     float osc2Gain = apvts.getRawParameterValue("osc2Gain")->load();
     float osc2Detune = apvts.getRawParameterValue("osc2Detune")->load();
 
+    int unisonVoices = static_cast<int>(apvts.getRawParameterValue("unisonVoices")->load());
+    float unisonDetune = apvts.getRawParameterValue("unisonDetune")->load();
+
     float attack = apvts.getRawParameterValue("ampAttack")->load();
     float decay = apvts.getRawParameterValue("ampDecay")->load();
     float sustain = apvts.getRawParameterValue("ampSustain")->load();
@@ -316,10 +324,14 @@ void SchranzMachineProcessor::updateVoiceParameters()
             voice->getOsc1().setType(static_cast<OscillatorType>(osc1Type));
             voice->setOsc1Gain(osc1Gain);
             voice->getOsc1().setDetune(osc1Detune);
+            voice->getOsc1().setUnisonCount(unisonVoices);
+            voice->getOsc1().setUnisonDetune(unisonDetune);
 
             voice->getOsc2().setType(static_cast<OscillatorType>(osc2Type));
             voice->setOsc2Gain(osc2Gain);
             voice->getOsc2().setDetune(osc2Detune);
+            voice->getOsc2().setUnisonCount(unisonVoices);
+            voice->getOsc2().setUnisonDetune(unisonDetune);
 
             voice->setAmpAttack(attack);
             voice->setAmpDecay(decay);

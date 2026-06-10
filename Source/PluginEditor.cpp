@@ -407,6 +407,14 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
     addKnob(osc2DetuneSlider, osc2DetuneLabel, "osc2Detune");
     attachSlider(osc2DetuneAttach, "osc2Detune", osc2DetuneSlider);
 
+    // Unison (supersaw) — shared across both oscillators
+    addKnob(unisonVoicesSlider, unisonVoicesLabel, "unisonVoices");
+    attachSlider(unisonVoicesAttach, "unisonVoices", unisonVoicesSlider);
+    addKnob(unisonDetuneSlider, unisonDetuneLabel, "unisonDetune");
+    attachSlider(unisonDetuneAttach, "unisonDetune", unisonDetuneSlider);
+    unisonVoicesSlider.setTooltip("Stacked detuned voices per oscillator (1=off, up to 8 = supersaw)");
+    unisonDetuneSlider.setTooltip("Spread between unison voices in cents");
+
     // Envelope
     addKnob(attackSlider, attackLabel, "ampAttack");   attachSlider(attackAttach, "ampAttack", attackSlider);
     addKnob(decaySlider, decayLabel, "ampDecay");      attachSlider(decayAttach, "ampDecay", decaySlider);
@@ -802,6 +810,15 @@ void SchranzMachineEditor::resized()
     // Layout osc section content
     {
         auto content = oscSection.getContentArea();
+
+        // Bottom strip reserved for shared UNISON knobs
+        auto unisonStrip = content.removeFromBottom(40);
+        int uw = unisonStrip.getWidth() / 2;
+        unisonVoicesSlider.setBounds(unisonStrip.removeFromLeft(uw).withTrimmedBottom(12).reduced(8, 0));
+        unisonDetuneSlider.setBounds(unisonStrip.withTrimmedBottom(12).reduced(8, 0));
+        unisonVoicesLabel.setBounds(unisonVoicesSlider.getX() - 8, unisonVoicesSlider.getBottom() - 2, uw, 12);
+        unisonDetuneLabel.setBounds(unisonDetuneSlider.getX() - 8, unisonDetuneSlider.getBottom() - 2, uw, 12);
+
         int halfW = content.getWidth() / 2;
 
         auto osc1 = content.removeFromLeft(halfW).reduced(2);

@@ -160,6 +160,10 @@ private:
     juce::Label osc2GainLabel{"", "GAIN"}, osc2DetuneLabel{"", "DETUNE"};
     juce::Label osc1TitleLabel{"", "OSC 1"}, osc2TitleLabel{"", "OSC 2"};
 
+    // Unison (shared)
+    juce::Slider unisonVoicesSlider, unisonDetuneSlider;
+    juce::Label unisonVoicesLabel{"", "VOICES"}, unisonDetuneLabel{"", "DETUNE"};
+
     // Amp Envelope
     juce::Slider attackSlider, decaySlider, sustainSlider, releaseSlider;
     juce::Label attackLabel{"", "A"}, decayLabel{"", "D"}, sustainLabel{"", "S"}, releaseLabel{"", "R"};
@@ -224,6 +228,7 @@ private:
         osc1TypeAttach, osc2TypeAttach, distTypeAttach, filterTypeAttach, wsTypeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
         osc1GainAttach, osc1DetuneAttach, osc2GainAttach, osc2DetuneAttach,
+        unisonVoicesAttach, unisonDetuneAttach,
         attackAttach, decayAttach, sustainAttach, releaseAttach,
         driveAttach, distMixAttach, crushBitsAttach, crushRateAttach,
         cutoffAttach, resonanceAttach, filterEnvAttach,
