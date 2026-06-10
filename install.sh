@@ -57,3 +57,6 @@ fi
 
 echo ""
 echo "Installation complete! Restart your DAW to scan for the new plugin."
+echo ""
+echo "Features: 5-octave MIDI keyboard, 500+ presets, 110+ MIDI patterns,"
+echo "          8 effects (Delay, Reverb, Compressor, Chorus, Phaser, EQ, Ring Mod, Waveshaper)"

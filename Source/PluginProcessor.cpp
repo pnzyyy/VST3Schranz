@@ -94,6 +94,34 @@ juce::AudioProcessorValueTreeState::ParameterLayout SchranzMachineProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("masterGain", "Master",
         0.0f, 1.0f, 0.7f));
 
+    // Phaser
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("phaserRate", "Phaser Rate",
+        juce::NormalisableRange<float>(0.1f, 5.0f, 0.01f), 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("phaserDepth", "Phaser Depth", 0.0f, 1.0f, 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("phaserMix", "Phaser Mix", 0.0f, 1.0f, 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("phaserFeedback", "Phaser FB",
+        juce::NormalisableRange<float>(0.0f, 0.9f, 0.01f), 0.3f));
+
+    // EQ
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("eqLowGain", "EQ Low",
+        juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("eqMidGain", "EQ Mid",
+        juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("eqHighGain", "EQ High",
+        juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("eqMidFreq", "EQ Mid Freq",
+        juce::NormalisableRange<float>(200.0f, 8000.0f, 1.0f, 0.3f), 1000.0f));
+
+    // Ring Modulator
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("ringModFreq", "Ring Mod Freq",
+        juce::NormalisableRange<float>(20.0f, 2000.0f, 1.0f, 0.3f), 440.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("ringModMix", "Ring Mod Mix", 0.0f, 1.0f, 0.0f));
+
+    // Waveshaper
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("wsAmount", "WS Amount", 0.0f, 1.0f, 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("wsType", "WS Type",
+        juce::StringArray{"Tanh", "Sin", "Abs", "Cubic"}, 0));
+
     // Sample controls
     params.push_back(std::make_unique<juce::AudioParameterBool>("sampleLoop", "Sample Loop", false));
     params.push_back(std::make_unique<juce::AudioParameterInt>("sampleRootNote", "Root Note", 0, 127, 60));
@@ -109,6 +137,10 @@ void SchranzMachineProcessor::prepareToPlay(double sampleRate, int samplesPerBlo
     compressorL.prepare(sampleRate);
     compressorR.prepare(sampleRate);
     chorusEngine.prepare(sampleRate);
+    phaserEngine.prepare(sampleRate);
+    eqEngineL.prepare(sampleRate);
+    eqEngineR.prepare(sampleRate);
+    ringModEngine.prepare(sampleRate);
 }
 
 void SchranzMachineProcessor::releaseResources() {}
@@ -140,9 +172,18 @@ void SchranzMachineProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         float l = buffer.getSample(0, i);
         float r = isStereo ? buffer.getSample(1, i) : l;
 
+        eqEngineL.process(l);
+        eqEngineR.process(r);
+
+        waveshaperL.process(l);
+        waveshaperR.process(r);
+
+        ringModEngine.process(l, r);
+
         l = compressorL.process(l);
         r = compressorR.process(r);
 
+        phaserEngine.process(l, r);
         chorusEngine.process(l, r);
         delayEngine.process(l, r);
         reverbEngine.process(l, r);
@@ -245,6 +286,28 @@ void SchranzMachineProcessor::updateEffectParameters()
     chorusEngine.setRate(apvts.getRawParameterValue("chorusRate")->load());
     chorusEngine.setDepth(apvts.getRawParameterValue("chorusDepth")->load());
     chorusEngine.setMix(apvts.getRawParameterValue("chorusMix")->load());
+
+    phaserEngine.setRate(apvts.getRawParameterValue("phaserRate")->load());
+    phaserEngine.setDepth(apvts.getRawParameterValue("phaserDepth")->load());
+    phaserEngine.setMix(apvts.getRawParameterValue("phaserMix")->load());
+    phaserEngine.setFeedback(apvts.getRawParameterValue("phaserFeedback")->load());
+
+    eqEngineL.setLowGain(apvts.getRawParameterValue("eqLowGain")->load());
+    eqEngineL.setMidGain(apvts.getRawParameterValue("eqMidGain")->load());
+    eqEngineL.setHighGain(apvts.getRawParameterValue("eqHighGain")->load());
+    eqEngineL.setMidFreq(apvts.getRawParameterValue("eqMidFreq")->load());
+    eqEngineR.setLowGain(apvts.getRawParameterValue("eqLowGain")->load());
+    eqEngineR.setMidGain(apvts.getRawParameterValue("eqMidGain")->load());
+    eqEngineR.setHighGain(apvts.getRawParameterValue("eqHighGain")->load());
+    eqEngineR.setMidFreq(apvts.getRawParameterValue("eqMidFreq")->load());
+
+    ringModEngine.setFrequency(apvts.getRawParameterValue("ringModFreq")->load());
+    ringModEngine.setMix(apvts.getRawParameterValue("ringModMix")->load());
+
+    waveshaperL.setAmount(apvts.getRawParameterValue("wsAmount")->load());
+    waveshaperL.setType(static_cast<int>(apvts.getRawParameterValue("wsType")->load()));
+    waveshaperR.setAmount(apvts.getRawParameterValue("wsAmount")->load());
+    waveshaperR.setType(static_cast<int>(apvts.getRawParameterValue("wsType")->load()));
 }
 
 void SchranzMachineProcessor::loadSample(const juce::File& file)

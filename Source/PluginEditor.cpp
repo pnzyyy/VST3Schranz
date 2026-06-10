@@ -212,10 +212,10 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
       dragDropArea(p)
 {
     setLookAndFeel(&schranzLnf);
-    setSize(960, 720);
+    setSize(960, 860);
 
-    // Keyboard setup — 3 octaves from C2 to C5
-    keyboard.setAvailableRange(36, 84);
+    // Keyboard setup — 5 octaves from C1 to C6
+    keyboard.setAvailableRange(24, 96);
     keyboard.setOctaveForMiddleC(4);
     keyboard.setColour(juce::MidiKeyboardComponent::whiteNoteColourId, juce::Colour(0xFF1A1A1A));
     keyboard.setColour(juce::MidiKeyboardComponent::blackNoteColourId, juce::Colour(0xFF050505));
@@ -239,7 +239,8 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
 
     // Section panels
     for (auto* panel : { &oscSection, &sampleSection, &envSection, &distSection, &crushSection,
-                          &filterSection, &delaySection, &reverbSection, &compSection, &chorusSection })
+                          &filterSection, &delaySection, &reverbSection, &compSection, &chorusSection,
+                          &phaserSection, &eqSection, &ringModSection, &wsSection })
         addAndMakeVisible(panel);
 
     auto& apvts = processorRef.getAPVTS();
@@ -327,6 +328,26 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
     addKnob(chorusDepthSlider, chDepthLabel, "chorusDepth"); attachSlider(chDepthAttach, "chorusDepth", chorusDepthSlider);
     addKnob(chorusMixSlider, chMixLabel, "chorusMix");       attachSlider(chMixAttach, "chorusMix", chorusMixSlider);
 
+    // Phaser
+    addKnob(phaserRateSlider, phRateLabel, "phaserRate");   attachSlider(phRateAttach, "phaserRate", phaserRateSlider);
+    addKnob(phaserDepthSlider, phDepthLabel, "phaserDepth"); attachSlider(phDepthAttach, "phaserDepth", phaserDepthSlider);
+    addKnob(phaserMixSlider, phMixLabel, "phaserMix");       attachSlider(phMixAttach, "phaserMix", phaserMixSlider);
+    addKnob(phaserFbSlider, phFbLabel, "phaserFeedback");    attachSlider(phFbAttach, "phaserFeedback", phaserFbSlider);
+
+    // EQ
+    addKnob(eqLowSlider, eqLowLabel, "eqLowGain");     attachSlider(eqLowAttach, "eqLowGain", eqLowSlider);
+    addKnob(eqMidSlider, eqMidLabel, "eqMidGain");     attachSlider(eqMidAttach, "eqMidGain", eqMidSlider);
+    addKnob(eqHighSlider, eqHighLabel, "eqHighGain");   attachSlider(eqHighAttach, "eqHighGain", eqHighSlider);
+    addKnob(eqMidFreqSlider, eqFreqLabel, "eqMidFreq"); attachSlider(eqMidFreqAttach, "eqMidFreq", eqMidFreqSlider);
+
+    // Ring Mod
+    addKnob(ringFreqSlider, ringFreqLabel, "ringModFreq"); attachSlider(ringFreqAttach, "ringModFreq", ringFreqSlider);
+    addKnob(ringMixSlider, ringMixLabel, "ringModMix");    attachSlider(ringMixAttach, "ringModMix", ringMixSlider);
+
+    // Waveshaper
+    addCombo(wsTypeBox, {"Tanh", "Sin", "Abs", "Cubic"}, wsTypeAttach, "wsType");
+    addKnob(wsAmountSlider, wsAmountLabel, "wsAmount"); attachSlider(wsAmountAttach, "wsAmount", wsAmountSlider);
+
     // Master
     addAndMakeVisible(masterSlider);
     masterSlider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -403,7 +424,7 @@ void SchranzMachineEditor::paint(juce::Graphics& g)
     g.fillRect(0.0f, 40.0f, static_cast<float>(getWidth()), 2.0f);
 
     // Master label
-    auto masterArea = getLocalBounds().removeFromBottom(95).removeFromTop(30).toFloat().reduced(10, 0);
+    auto masterArea = getLocalBounds().removeFromBottom(97).removeFromTop(30).toFloat().reduced(10, 0);
     g.setColour(juce::Colour(SchranzLookAndFeel::kTextDim));
     g.setFont(juce::Font(10.0f).boldened());
     g.drawText("MASTER", masterArea.removeFromLeft(60), juce::Justification::centredLeft);
@@ -423,7 +444,7 @@ void SchranzMachineEditor::resized()
     nextPresetBtn.setBounds(presetBar.removeFromRight(28));
     presetNameLabel.setBounds(presetBar);
 
-    // Keyboard at bottom (3+ octaves, 60px tall)
+    // Keyboard at bottom (5 octaves C1-C6, 65px tall)
     auto keyboardArea = area.removeFromBottom(65);
     keyboard.setBounds(keyboardArea);
 
@@ -600,5 +621,66 @@ void SchranzMachineEditor::resized()
         chRateLabel.setBounds(chorusRateSlider.getX(), chorusRateSlider.getBottom() - 2, kw, 12);
         chDepthLabel.setBounds(chorusDepthSlider.getX(), chorusDepthSlider.getBottom() - 2, kw, 12);
         chMixLabel.setBounds(chorusMixSlider.getX(), chorusMixSlider.getBottom() - 2, content.getWidth(), 12);
+    }
+
+    main.removeFromTop(4);
+
+    // Row 4: Phaser + EQ + Ring Mod + Waveshaper (height 120)
+    auto row4 = main.removeFromTop(120);
+    int row4W = row4.getWidth();
+    phaserSection.setBounds(row4.removeFromLeft(row4W / 4).reduced(2));
+    eqSection.setBounds(row4.removeFromLeft(row4W / 4).reduced(2));
+    ringModSection.setBounds(row4.removeFromLeft(row4W / 4).reduced(2));
+    wsSection.setBounds(row4.reduced(2));
+
+    // Phaser layout
+    {
+        auto content = phaserSection.getContentArea().reduced(2);
+        int kw = content.getWidth() / 2;
+        int kh = content.getHeight() / 2;
+        auto placeKnob = [&](juce::Slider& s, juce::Label& l, int col, int row) {
+            auto area2 = juce::Rectangle<int>(content.getX() + col * kw, content.getY() + row * kh, kw, kh);
+            s.setBounds(area2.withTrimmedBottom(12));
+            l.setBounds(area2.getX(), area2.getBottom() - 12, kw, 12);
+        };
+        placeKnob(phaserRateSlider, phRateLabel, 0, 0);
+        placeKnob(phaserDepthSlider, phDepthLabel, 1, 0);
+        placeKnob(phaserMixSlider, phMixLabel, 0, 1);
+        placeKnob(phaserFbSlider, phFbLabel, 1, 1);
+    }
+
+    // EQ layout
+    {
+        auto content = eqSection.getContentArea().reduced(2);
+        int kw = content.getWidth() / 2;
+        int kh = content.getHeight() / 2;
+        auto placeKnob = [&](juce::Slider& s, juce::Label& l, int col, int row) {
+            auto area2 = juce::Rectangle<int>(content.getX() + col * kw, content.getY() + row * kh, kw, kh);
+            s.setBounds(area2.withTrimmedBottom(12));
+            l.setBounds(area2.getX(), area2.getBottom() - 12, kw, 12);
+        };
+        placeKnob(eqLowSlider, eqLowLabel, 0, 0);
+        placeKnob(eqMidSlider, eqMidLabel, 1, 0);
+        placeKnob(eqHighSlider, eqHighLabel, 0, 1);
+        placeKnob(eqMidFreqSlider, eqFreqLabel, 1, 1);
+    }
+
+    // Ring Mod layout
+    {
+        auto content = ringModSection.getContentArea().reduced(2);
+        int kw = content.getWidth() / 2;
+        ringFreqSlider.setBounds(content.removeFromLeft(kw).withTrimmedBottom(12));
+        ringMixSlider.setBounds(content.withTrimmedBottom(12));
+        ringFreqLabel.setBounds(ringFreqSlider.getX(), ringFreqSlider.getBottom() - 2, kw, 12);
+        ringMixLabel.setBounds(ringMixSlider.getX(), ringMixSlider.getBottom() - 2, content.getWidth(), 12);
+    }
+
+    // Waveshaper layout
+    {
+        auto content = wsSection.getContentArea().reduced(2);
+        wsTypeBox.setBounds(content.removeFromTop(22).reduced(4, 0));
+        content.removeFromTop(2);
+        wsAmountSlider.setBounds(content.withTrimmedBottom(12));
+        wsAmountLabel.setBounds(content.getX(), content.getBottom() - 12, content.getWidth(), 12);
     }
 }

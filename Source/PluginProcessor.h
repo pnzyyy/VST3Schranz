@@ -54,6 +54,10 @@ private:
     ReverbEngine reverbEngine;
     CompressorEngine compressorL, compressorR;
     ChorusEngine chorusEngine;
+    PhaserEngine phaserEngine;
+    EQEngine eqEngineL, eqEngineR;
+    RingModEngine ringModEngine;
+    WaveshaperEngine waveshaperL, waveshaperR;
 
     juce::String loadedSampleName;
     juce::String loadedSamplePath;

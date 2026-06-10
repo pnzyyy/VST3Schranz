@@ -211,3 +211,173 @@ void ChorusEngine::reset()
 void ChorusEngine::setRate(float hz) { rate = hz; }
 void ChorusEngine::setDepth(float d) { depth = d; }
 void ChorusEngine::setMix(float m) { mix = m; }
+
+// --- Phaser ---
+PhaserEngine::PhaserEngine() {}
+
+void PhaserEngine::prepare(double sr)
+{
+    sampleRate = sr;
+    reset();
+}
+
+void PhaserEngine::process(float& leftSample, float& rightSample)
+{
+    double lfo = std::sin(lfoPhase * juce::MathConstants<double>::twoPi);
+    lfoPhase += static_cast<double>(rate) / sampleRate;
+    if (lfoPhase >= 1.0) lfoPhase -= 1.0;
+
+    float minFreq = 200.0f;
+    float maxFreq = 4000.0f;
+    float modFreq = minFreq + (maxFreq - minFreq) * (0.5f + 0.5f * static_cast<float>(lfo) * depth);
+    float coeff = (modFreq * juce::MathConstants<float>::twoPi / static_cast<float>(sampleRate) - 1.0f)
+                / (modFreq * juce::MathConstants<float>::twoPi / static_cast<float>(sampleRate) + 1.0f);
+
+    float inL = leftSample + feedbackSampleL * feedback;
+    float inR = rightSample + feedbackSampleR * feedback;
+
+    for (int i = 0; i < kNumStages; ++i)
+    {
+        float tmpL = coeff * inL + allpassL[i];
+        allpassL[i] = inL - coeff * tmpL;
+        inL = tmpL;
+
+        float tmpR = coeff * inR + allpassR[i];
+        allpassR[i] = inR - coeff * tmpR;
+        inR = tmpR;
+    }
+
+    feedbackSampleL = inL;
+    feedbackSampleR = inR;
+
+    leftSample  = leftSample * (1.0f - mix) + inL * mix;
+    rightSample = rightSample * (1.0f - mix) + inR * mix;
+}
+
+void PhaserEngine::reset()
+{
+    lfoPhase = 0.0;
+    feedbackSampleL = 0.0f;
+    feedbackSampleR = 0.0f;
+    for (int i = 0; i < kNumStages; ++i)
+    {
+        allpassL[i] = 0.0f;
+        allpassR[i] = 0.0f;
+    }
+}
+
+void PhaserEngine::setRate(float hz) { rate = hz; }
+void PhaserEngine::setDepth(float d) { depth = d; }
+void PhaserEngine::setMix(float m) { mix = m; }
+void PhaserEngine::setFeedback(float fb) { feedback = juce::jlimit(0.0f, 0.9f, fb); }
+
+// --- EQ ---
+EQEngine::EQEngine() { updateCoeffs(); }
+
+void EQEngine::prepare(double sr)
+{
+    sampleRate = sr;
+    reset();
+    updateCoeffs();
+}
+
+void EQEngine::process(float& sample)
+{
+    float low = lowState + lowCutoff * (sample - lowState);
+    lowState = low;
+
+    float high = sample - lowState;
+    float tmp = highState + highCutoff * (high - highState);
+    highState = tmp;
+    float mid = high - highState;
+    high = highState;
+
+    sample = low * lowGain + mid * midGain + high * highGain;
+}
+
+void EQEngine::reset()
+{
+    lowState = 0.0f;
+    midState = 0.0f;
+    highState = 0.0f;
+}
+
+void EQEngine::updateCoeffs()
+{
+    lowCutoff = 1.0f - std::exp(-juce::MathConstants<float>::twoPi * 300.0f / static_cast<float>(sampleRate));
+    highCutoff = 1.0f - std::exp(-juce::MathConstants<float>::twoPi * midFreq / static_cast<float>(sampleRate));
+}
+
+void EQEngine::setLowGain(float dB) { lowGain = std::pow(10.0f, dB / 20.0f); }
+void EQEngine::setMidGain(float dB) { midGain = std::pow(10.0f, dB / 20.0f); }
+void EQEngine::setHighGain(float dB) { highGain = std::pow(10.0f, dB / 20.0f); }
+void EQEngine::setMidFreq(float hz) { midFreq = hz; updateCoeffs(); }
+
+// --- Ring Modulator ---
+RingModEngine::RingModEngine() {}
+
+void RingModEngine::prepare(double sr)
+{
+    sampleRate = sr;
+    phase = 0.0;
+}
+
+void RingModEngine::process(float& leftSample, float& rightSample)
+{
+    float carrier = static_cast<float>(std::sin(phase * juce::MathConstants<double>::twoPi));
+    phase += static_cast<double>(frequency) / sampleRate;
+    if (phase >= 1.0) phase -= 1.0;
+
+    float modulatedL = leftSample * carrier;
+    float modulatedR = rightSample * carrier;
+
+    leftSample  = leftSample * (1.0f - mix) + modulatedL * mix;
+    rightSample = rightSample * (1.0f - mix) + modulatedR * mix;
+}
+
+void RingModEngine::reset() { phase = 0.0; }
+void RingModEngine::setFrequency(float hz) { frequency = hz; }
+void RingModEngine::setMix(float m) { mix = m; }
+
+// --- Waveshaper ---
+WaveshaperEngine::WaveshaperEngine() {}
+
+void WaveshaperEngine::process(float& sample)
+{
+    if (amount < 0.001f) return;
+
+    float dry = sample;
+    float shaped;
+
+    switch (type)
+    {
+        case 0: // Tanh
+            shaped = std::tanh(sample * (1.0f + amount * 10.0f));
+            break;
+        case 1: // Sin
+            shaped = std::sin(sample * juce::MathConstants<float>::pi * (1.0f + amount * 4.0f));
+            break;
+        case 2: // Abs
+        {
+            float gain = 1.0f + amount * 8.0f;
+            shaped = std::abs(sample * gain);
+            if (shaped > 1.0f) shaped = 2.0f - shaped;
+            shaped *= (sample >= 0.0f ? 1.0f : -1.0f);
+            break;
+        }
+        case 3: // Cubic
+        {
+            float x = sample * (1.0f + amount * 5.0f);
+            shaped = x - (x * x * x) / 3.0f;
+            break;
+        }
+        default:
+            shaped = sample;
+            break;
+    }
+
+    sample = dry * (1.0f - amount) + shaped * amount;
+}
+
+void WaveshaperEngine::setAmount(float a) { amount = a; }
+void WaveshaperEngine::setType(int t) { type = t; }

@@ -94,6 +94,10 @@ private:
     SectionPanel reverbSection{"REVERB"};
     SectionPanel compSection{"COMPRESSOR"};
     SectionPanel chorusSection{"CHORUS"};
+    SectionPanel phaserSection{"PHASER"};
+    SectionPanel eqSection{"EQ"};
+    SectionPanel ringModSection{"RING MOD"};
+    SectionPanel wsSection{"WAVESHAPER"};
 
     // Osc 1
     juce::ComboBox osc1TypeBox, osc2TypeBox;
@@ -138,6 +142,23 @@ private:
     juce::Slider chorusRateSlider, chorusDepthSlider, chorusMixSlider;
     juce::Label chRateLabel{"", "RATE"}, chDepthLabel{"", "DEPTH"}, chMixLabel{"", "MIX"};
 
+    // Phaser
+    juce::Slider phaserRateSlider, phaserDepthSlider, phaserMixSlider, phaserFbSlider;
+    juce::Label phRateLabel{"", "RATE"}, phDepthLabel{"", "DEPTH"}, phMixLabel{"", "MIX"}, phFbLabel{"", "FB"};
+
+    // EQ
+    juce::Slider eqLowSlider, eqMidSlider, eqHighSlider, eqMidFreqSlider;
+    juce::Label eqLowLabel{"", "LOW"}, eqMidLabel{"", "MID"}, eqHighLabel{"", "HIGH"}, eqFreqLabel{"", "FREQ"};
+
+    // Ring Mod
+    juce::Slider ringFreqSlider, ringMixSlider;
+    juce::Label ringFreqLabel{"", "FREQ"}, ringMixLabel{"", "MIX"};
+
+    // Waveshaper
+    juce::ComboBox wsTypeBox;
+    juce::Slider wsAmountSlider;
+    juce::Label wsAmountLabel{"", "AMOUNT"};
+
     // Master
     juce::Slider masterSlider;
 
@@ -147,7 +168,7 @@ private:
 
     // APVTS attachments
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>
-        osc1TypeAttach, osc2TypeAttach, distTypeAttach, filterTypeAttach;
+        osc1TypeAttach, osc2TypeAttach, distTypeAttach, filterTypeAttach, wsTypeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
         osc1GainAttach, osc1DetuneAttach, osc2GainAttach, osc2DetuneAttach,
         attackAttach, decayAttach, sustainAttach, releaseAttach,
@@ -157,6 +178,10 @@ private:
         rvSizeAttach, rvDampAttach, rvMixAttach, rvWidthAttach,
         compThreshAttach, compRatioAttach, compAttackAttach, compReleaseAttach, compMakeupAttach,
         chRateAttach, chDepthAttach, chMixAttach,
+        phRateAttach, phDepthAttach, phMixAttach, phFbAttach,
+        eqLowAttach, eqMidAttach, eqHighAttach, eqMidFreqAttach,
+        ringFreqAttach, ringMixAttach,
+        wsAmountAttach,
         masterAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>
         sampleLoopAttach, delayPPAttach;

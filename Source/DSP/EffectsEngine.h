@@ -97,3 +97,95 @@ private:
     std::vector<float> bufferL, bufferR;
     int writePos = 0;
 };
+
+class PhaserEngine
+{
+public:
+    PhaserEngine();
+
+    void prepare(double sampleRate);
+    void process(float& leftSample, float& rightSample);
+    void reset();
+
+    void setRate(float hz);
+    void setDepth(float depth);
+    void setMix(float mix);
+    void setFeedback(float fb);
+
+private:
+    double sampleRate = 44100.0;
+    double lfoPhase = 0.0;
+    float rate = 0.5f;
+    float depth = 0.5f;
+    float mix = 0.0f;
+    float feedback = 0.3f;
+
+    static constexpr int kNumStages = 6;
+    float allpassL[kNumStages] = {};
+    float allpassR[kNumStages] = {};
+    float feedbackSampleL = 0.0f;
+    float feedbackSampleR = 0.0f;
+};
+
+class EQEngine
+{
+public:
+    EQEngine();
+
+    void prepare(double sampleRate);
+    void process(float& sample);
+    void reset();
+
+    void setLowGain(float dB);
+    void setMidGain(float dB);
+    void setHighGain(float dB);
+    void setMidFreq(float hz);
+
+private:
+    double sampleRate = 44100.0;
+    float lowGain = 1.0f;
+    float midGain = 1.0f;
+    float highGain = 1.0f;
+    float midFreq = 1000.0f;
+
+    float lowState = 0.0f;
+    float midState = 0.0f;
+    float highState = 0.0f;
+    float lowCutoff = 0.0f;
+    float highCutoff = 0.0f;
+    void updateCoeffs();
+};
+
+class RingModEngine
+{
+public:
+    RingModEngine();
+
+    void prepare(double sampleRate);
+    void process(float& leftSample, float& rightSample);
+    void reset();
+
+    void setFrequency(float hz);
+    void setMix(float mix);
+
+private:
+    double sampleRate = 44100.0;
+    double phase = 0.0;
+    float frequency = 440.0f;
+    float mix = 0.0f;
+};
+
+class WaveshaperEngine
+{
+public:
+    WaveshaperEngine();
+
+    void process(float& sample);
+
+    void setAmount(float amount);
+    void setType(int type);
+
+private:
+    float amount = 0.0f;
+    int type = 0;
+};
