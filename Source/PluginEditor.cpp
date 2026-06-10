@@ -140,7 +140,7 @@ void SectionPanel::paint(juce::Graphics& g)
 
 juce::Rectangle<int> SectionPanel::getContentArea() const
 {
-    return getLocalBounds().reduced(4).withTrimmedTop(18);
+    return getBounds().reduced(4).withTrimmedTop(18);
 }
 
 // ======================= DragDropArea =======================

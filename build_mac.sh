@@ -72,6 +72,9 @@ APP_NAME="Schranz Machine"
 APP_SRC="build/SchranzMachine_artefacts/Release/Standalone/${APP_NAME}.app"
 
 if [ -d "$APP_SRC" ]; then
+    # Kill running instance if open (so we can overwrite)
+    pkill -f "${APP_NAME}" 2>/dev/null || true
+    sleep 0.5
     rm -rf "/Applications/${APP_NAME}.app"
     cp -R "$APP_SRC" "/Applications/${APP_NAME}.app"
     xattr -dr com.apple.quarantine "/Applications/${APP_NAME}.app" 2>/dev/null || true
@@ -110,13 +113,21 @@ if [ -d "$APP_SRC" ]; then
 fi
 echo ""
 
-# 6. Create Desktop alias
-echo "[6/6] Creating Desktop shortcut..."
+# 6. Create/update Desktop alias (always refresh)
+echo "[6/6] Updating Desktop shortcut..."
 DESKTOP="$HOME/Desktop"
 if [ -d "$DESKTOP" ]; then
+    # Remove any old alias or symlink
     rm -f "$DESKTOP/${APP_NAME}"
+    rm -f "$DESKTOP/${APP_NAME} alias"
+    rm -rf "$DESKTOP/${APP_NAME}.app"
+
+    # Create fresh alias via Finder
     osascript -e "tell application \"Finder\" to make alias file to POSIX file \"/Applications/${APP_NAME}.app\" at POSIX file \"$DESKTOP\"" 2>/dev/null || true
     echo "  Shortcut -> $DESKTOP/${APP_NAME}"
+
+    # Refresh Finder so new icon shows immediately
+    killall Finder 2>/dev/null || true
 fi
 
 echo ""
