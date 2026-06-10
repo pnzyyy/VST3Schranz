@@ -188,12 +188,29 @@ void SchranzMachineProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         delayEngine.process(l, r);
         reverbEngine.process(l, r);
 
+        // NaN/Inf safety + hard limiter to protect speakers and CoreAudio
+        if (!std::isfinite(l)) l = 0.0f;
+        if (!std::isfinite(r)) r = 0.0f;
+        l = juce::jlimit(-1.5f, 1.5f, l);
+        r = juce::jlimit(-1.5f, 1.5f, r);
+
         buffer.setSample(0, i, l);
         if (isStereo) buffer.setSample(1, i, r);
     }
 
     float master = apvts.getRawParameterValue("masterGain")->load();
     buffer.applyGain(master);
+
+    // Final clamp at output stage
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+    {
+        auto* data = buffer.getWritePointer(ch);
+        for (int i = 0; i < numSamples; ++i)
+        {
+            if (!std::isfinite(data[i])) data[i] = 0.0f;
+            data[i] = juce::jlimit(-1.0f, 1.0f, data[i]);
+        }
+    }
 }
 
 void SchranzMachineProcessor::updateVoiceParameters()

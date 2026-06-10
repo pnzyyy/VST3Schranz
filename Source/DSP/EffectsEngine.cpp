@@ -124,24 +124,34 @@ void CompressorEngine::prepare(double sr)
 
 float CompressorEngine::process(float input)
 {
-    float inputDb = 20.0f * std::log10(std::abs(input) + 1e-10f);
+    if (!std::isfinite(input)) input = 0.0f;
 
-    float attackCoeff = std::exp(-1.0f / (attackMs * 0.001f * static_cast<float>(sampleRate)));
-    float releaseCoeff = std::exp(-1.0f / (releaseMs * 0.001f * static_cast<float>(sampleRate)));
+    float absIn = std::abs(input);
+    float inputDb = 20.0f * std::log10(absIn + 1e-6f);
+    inputDb = juce::jlimit(-120.0f, 24.0f, inputDb);
+
+    float attackCoeff = std::exp(-1.0f / (juce::jmax(0.1f, attackMs) * 0.001f * static_cast<float>(sampleRate)));
+    float releaseCoeff = std::exp(-1.0f / (juce::jmax(1.0f, releaseMs) * 0.001f * static_cast<float>(sampleRate)));
 
     if (inputDb > envelope)
         envelope = attackCoeff * envelope + (1.0f - attackCoeff) * inputDb;
     else
         envelope = releaseCoeff * envelope + (1.0f - releaseCoeff) * inputDb;
 
+    if (!std::isfinite(envelope)) envelope = -120.0f;
+    envelope = juce::jlimit(-120.0f, 24.0f, envelope);
+
     float gainReduction = 0.0f;
     if (envelope > threshold)
-        gainReduction = (threshold - envelope) * (1.0f - 1.0f / ratio);
+        gainReduction = (threshold - envelope) * (1.0f - 1.0f / juce::jmax(1.0f, ratio));
 
     float gainDb = gainReduction + makeupGain;
+    gainDb = juce::jlimit(-60.0f, 24.0f, gainDb);
     float gainLinear = std::pow(10.0f, gainDb / 20.0f);
 
-    return input * gainLinear;
+    float out = input * gainLinear;
+    if (!std::isfinite(out)) out = 0.0f;
+    return out;
 }
 
 void CompressorEngine::reset() { envelope = 0.0f; }
@@ -247,8 +257,10 @@ void PhaserEngine::process(float& leftSample, float& rightSample)
         inR = tmpR;
     }
 
-    feedbackSampleL = inL;
-    feedbackSampleR = inR;
+    feedbackSampleL = juce::jlimit(-2.0f, 2.0f, inL);
+    feedbackSampleR = juce::jlimit(-2.0f, 2.0f, inR);
+    if (!std::isfinite(feedbackSampleL)) feedbackSampleL = 0.0f;
+    if (!std::isfinite(feedbackSampleR)) feedbackSampleR = 0.0f;
 
     leftSample  = leftSample * (1.0f - mix) + inL * mix;
     rightSample = rightSample * (1.0f - mix) + inR * mix;
