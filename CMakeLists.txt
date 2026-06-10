@@ -47,6 +47,8 @@ target_sources(SchranzMachine
         Source/DSP/SchranzVoice.h
         Source/DSP/SchranzSynth.cpp
         Source/DSP/SchranzSynth.h
+        Source/DSP/EffectsEngine.cpp
+        Source/DSP/EffectsEngine.h
         Source/Presets/PresetManager.cpp
         Source/Presets/PresetManager.h
         Source/Presets/FactoryPresets.h

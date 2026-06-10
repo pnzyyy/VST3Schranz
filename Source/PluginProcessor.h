@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "DSP/SchranzSynth.h"
+#include "DSP/EffectsEngine.h"
 #include "Presets/PresetManager.h"
 
 class SchranzMachineProcessor : public juce::AudioProcessor
@@ -36,6 +37,7 @@ public:
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
     PresetManager& getPresetManager() { return presetManager; }
     SchranzSynth& getSchranzSynth() { return schranzSynth; }
+    juce::MidiKeyboardState& getKeyboardState() { return keyboardState; }
 
     void loadSample(const juce::File& file);
     juce::String getLoadedSampleName() const { return loadedSampleName; }
@@ -46,10 +48,18 @@ private:
     juce::AudioProcessorValueTreeState apvts;
     SchranzSynth schranzSynth;
     PresetManager presetManager;
+    juce::MidiKeyboardState keyboardState;
+
+    DelayEngine delayEngine;
+    ReverbEngine reverbEngine;
+    CompressorEngine compressorL, compressorR;
+    ChorusEngine chorusEngine;
+
     juce::String loadedSampleName;
     juce::String loadedSamplePath;
 
     void updateVoiceParameters();
+    void updateEffectParameters();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SchranzMachineProcessor)
 };

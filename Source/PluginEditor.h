@@ -5,51 +5,44 @@
 class SchranzLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
-    SchranzLookAndFeel()
-    {
-        setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(0xFF111111));
-        setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xFFCC0000));
-        setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xFF333333));
-        setColour(juce::Slider::thumbColourId, juce::Colour(0xFFCC0000));
-        setColour(juce::Label::textColourId, juce::Colour(0xFFCCCCCC));
-        setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xFF222222));
-        setColour(juce::ComboBox::textColourId, juce::Colour(0xFFCCCCCC));
-        setColour(juce::ComboBox::outlineColourId, juce::Colour(0xFF444444));
-        setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF222222));
-        setColour(juce::TextButton::textColourOffId, juce::Colour(0xFFCCCCCC));
-    }
+    SchranzLookAndFeel();
 
     void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
-                          float sliderPosProportional, float rotaryStartAngle,
-                          float rotaryEndAngle, juce::Slider& slider) override
-    {
-        auto radius = static_cast<float>(juce::jmin(width / 2, height / 2)) - 4.0f;
-        auto centreX = static_cast<float>(x) + static_cast<float>(width) * 0.5f;
-        auto centreY = static_cast<float>(y) + static_cast<float>(height) * 0.5f;
-        auto angle = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
+                          float sliderPos, float startAngle, float endAngle,
+                          juce::Slider& slider) override;
 
-        // Background arc
-        juce::Path bgArc;
-        bgArc.addCentredArc(centreX, centreY, radius, radius, 0.0f,
-                            rotaryStartAngle, rotaryEndAngle, true);
-        g.setColour(juce::Colour(0xFF333333));
-        g.strokePath(bgArc, juce::PathStrokeType(3.0f));
+    void drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height,
+                          float sliderPos, float minSliderPos, float maxSliderPos,
+                          juce::Slider::SliderStyle style, juce::Slider& slider) override;
 
-        // Value arc
-        juce::Path valueArc;
-        valueArc.addCentredArc(centreX, centreY, radius, radius, 0.0f,
-                               rotaryStartAngle, angle, true);
-        g.setColour(juce::Colour(0xFFCC0000));
-        g.strokePath(valueArc, juce::PathStrokeType(3.0f));
+    void drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                              const juce::Colour& backgroundColour,
+                              bool shouldDrawButtonAsHighlighted,
+                              bool shouldDrawButtonAsDown) override;
 
-        // Dot
-        juce::Point<float> thumbPoint(centreX + (radius - 6.0f) * std::cos(angle - juce::MathConstants<float>::halfPi),
-                                       centreY + (radius - 6.0f) * std::sin(angle - juce::MathConstants<float>::halfPi));
-        g.setColour(juce::Colours::white);
-        g.fillEllipse(thumbPoint.x - 3.0f, thumbPoint.y - 3.0f, 6.0f, 6.0f);
+    void drawComboBox(juce::Graphics& g, int width, int height, bool isButtonDown,
+                      int buttonX, int buttonY, int buttonW, int buttonH,
+                      juce::ComboBox& box) override;
 
-        (void)slider;
-    }
+    static constexpr uint32_t kBgDark     = 0xFF0A0A0A;
+    static constexpr uint32_t kBgPanel    = 0xFF151515;
+    static constexpr uint32_t kBgSection  = 0xFF1C1C1C;
+    static constexpr uint32_t kAccent     = 0xFFE01020;
+    static constexpr uint32_t kAccentDim  = 0xFF8B0A14;
+    static constexpr uint32_t kTextBright = 0xFFDDDDDD;
+    static constexpr uint32_t kTextDim    = 0xFF777777;
+    static constexpr uint32_t kBorder     = 0xFF2A2A2A;
+};
+
+class SectionPanel : public juce::Component
+{
+public:
+    SectionPanel(const juce::String& title);
+    void paint(juce::Graphics& g) override;
+    juce::Rectangle<int> getContentArea() const;
+
+private:
+    juce::String title;
 };
 
 class DragDropArea : public juce::Component, public juce::FileDragAndDropTarget
@@ -67,7 +60,7 @@ private:
     bool isDragOver = false;
 };
 
-class SchranzMachineEditor : public juce::AudioProcessorEditor
+class SchranzMachineEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
     explicit SchranzMachineEditor(SchranzMachineProcessor&);
@@ -77,68 +70,100 @@ public:
     void resized() override;
 
 private:
+    void timerCallback() override;
+
     SchranzMachineProcessor& processorRef;
     SchranzLookAndFeel schranzLnf;
+
+    // MIDI Keyboard
+    juce::MidiKeyboardComponent keyboard;
 
     // Preset controls
     juce::TextButton prevPresetBtn{"<"};
     juce::TextButton nextPresetBtn{">"};
     juce::Label presetNameLabel;
 
-    // Osc 1
-    juce::ComboBox osc1TypeBox;
-    juce::Slider osc1GainSlider;
-    juce::Slider osc1DetuneSlider;
-    juce::Label osc1Label{"", "OSC 1"};
+    // Section panels
+    SectionPanel oscSection{"OSCILLATORS"};
+    SectionPanel sampleSection{"SAMPLE"};
+    SectionPanel envSection{"ENVELOPE"};
+    SectionPanel distSection{"DISTORTION"};
+    SectionPanel crushSection{"CRUSHER"};
+    SectionPanel filterSection{"FILTER"};
+    SectionPanel delaySection{"DELAY"};
+    SectionPanel reverbSection{"REVERB"};
+    SectionPanel compSection{"COMPRESSOR"};
+    SectionPanel chorusSection{"CHORUS"};
 
-    // Osc 2
-    juce::ComboBox osc2TypeBox;
-    juce::Slider osc2GainSlider;
-    juce::Slider osc2DetuneSlider;
-    juce::Label osc2Label{"", "OSC 2"};
+    // Osc 1
+    juce::ComboBox osc1TypeBox, osc2TypeBox;
+    juce::Slider osc1GainSlider, osc1DetuneSlider;
+    juce::Slider osc2GainSlider, osc2DetuneSlider;
+    juce::Label osc1GainLabel{"", "GAIN"}, osc1DetuneLabel{"", "DETUNE"};
+    juce::Label osc2GainLabel{"", "GAIN"}, osc2DetuneLabel{"", "DETUNE"};
+    juce::Label osc1TitleLabel{"", "OSC 1"}, osc2TitleLabel{"", "OSC 2"};
 
     // Amp Envelope
     juce::Slider attackSlider, decaySlider, sustainSlider, releaseSlider;
-    juce::Label envLabel{"", "ENVELOPE"};
+    juce::Label attackLabel{"", "A"}, decayLabel{"", "D"}, sustainLabel{"", "S"}, releaseLabel{"", "R"};
 
     // Distortion
     juce::ComboBox distTypeBox;
     juce::Slider driveSlider, distMixSlider;
-    juce::Label distLabel{"", "DISTORTION"};
+    juce::Label driveLabel{"", "DRIVE"}, distMixLabel{"", "MIX"};
 
     // Crusher
     juce::Slider crushBitsSlider, crushRateSlider;
-    juce::Label crushLabel{"", "CRUSHER"};
+    juce::Label crushBitsLabel{"", "BITS"}, crushRateLabel{"", "RATE"};
 
     // Filter
     juce::ComboBox filterTypeBox;
     juce::Slider cutoffSlider, resonanceSlider, filterEnvSlider;
-    juce::Label filterLabel{"", "FILTER"};
+    juce::Label cutoffLabel{"", "CUTOFF"}, resLabel{"", "RES"}, fEnvLabel{"", "ENV"};
+
+    // Delay
+    juce::Slider delayTimeSlider, delayFbSlider, delayMixSlider;
+    juce::ToggleButton delayPPBtn{"PP"};
+    juce::Label delayTimeLabel{"", "TIME"}, delayFbLabel{"", "FB"}, delayMixLabel{"", "MIX"};
+
+    // Reverb
+    juce::Slider reverbSizeSlider, reverbDampSlider, reverbMixSlider, reverbWidthSlider;
+    juce::Label rvSizeLabel{"", "SIZE"}, rvDampLabel{"", "DAMP"}, rvMixLabel{"", "MIX"}, rvWidthLabel{"", "WIDTH"};
+
+    // Compressor
+    juce::Slider compThreshSlider, compRatioSlider, compAttackSlider, compReleaseSlider, compMakeupSlider;
+    juce::Label compThLabel{"", "THRESH"}, compRaLabel{"", "RATIO"}, compALabel{"", "ATK"}, compRLabel{"", "REL"}, compMLabel{"", "GAIN"};
+
+    // Chorus
+    juce::Slider chorusRateSlider, chorusDepthSlider, chorusMixSlider;
+    juce::Label chRateLabel{"", "RATE"}, chDepthLabel{"", "DEPTH"}, chMixLabel{"", "MIX"};
 
     // Master
     juce::Slider masterSlider;
-    juce::Label masterLabel{"", "MASTER"};
 
-    // Sample area
+    // Sample
     DragDropArea dragDropArea;
-
-    // Sample controls
     juce::ToggleButton sampleLoopBtn{"Loop"};
 
     // APVTS attachments
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> osc1TypeAttach, osc2TypeAttach, distTypeAttach, filterTypeAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>
+        osc1TypeAttach, osc2TypeAttach, distTypeAttach, filterTypeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
-        osc1GainAttach, osc1DetuneAttach,
-        osc2GainAttach, osc2DetuneAttach,
+        osc1GainAttach, osc1DetuneAttach, osc2GainAttach, osc2DetuneAttach,
         attackAttach, decayAttach, sustainAttach, releaseAttach,
-        driveAttach, distMixAttach,
-        crushBitsAttach, crushRateAttach,
+        driveAttach, distMixAttach, crushBitsAttach, crushRateAttach,
         cutoffAttach, resonanceAttach, filterEnvAttach,
+        delayTimeAttach, delayFbAttach, delayMixAttach,
+        rvSizeAttach, rvDampAttach, rvMixAttach, rvWidthAttach,
+        compThreshAttach, compRatioAttach, compAttackAttach, compReleaseAttach, compMakeupAttach,
+        chRateAttach, chDepthAttach, chMixAttach,
         masterAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> sampleLoopAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>
+        sampleLoopAttach, delayPPAttach;
 
-    void setupSlider(juce::Slider& slider);
-    void setupLabel(juce::Label& label);
+    void setupKnob(juce::Slider& slider);
+    void setupKnobLabel(juce::Label& label);
+    void setupSectionLabel(juce::Label& label);
     void updatePresetLabel();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SchranzMachineEditor)

@@ -59,6 +59,37 @@ juce::AudioProcessorValueTreeState::ParameterLayout SchranzMachineProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("filterEnvAmount", "Filter Env",
         -1.0f, 1.0f, 0.0f));
 
+    // Delay
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayTime", "Delay Time",
+        juce::NormalisableRange<float>(10.0f, 1000.0f, 1.0f, 0.4f), 250.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayFeedback", "Delay FB", 0.0f, 0.95f, 0.4f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayMix", "Delay Mix", 0.0f, 1.0f, 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterBool>("delayPingPong", "Ping Pong", false));
+
+    // Reverb
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("reverbSize", "Room Size", 0.0f, 1.0f, 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("reverbDamping", "Damping", 0.0f, 1.0f, 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("reverbMix", "Reverb Mix", 0.0f, 1.0f, 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("reverbWidth", "Width", 0.0f, 1.0f, 1.0f));
+
+    // Compressor
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("compThreshold", "Comp Thresh",
+        juce::NormalisableRange<float>(-60.0f, 0.0f, 0.1f), -10.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("compRatio", "Comp Ratio",
+        juce::NormalisableRange<float>(1.0f, 20.0f, 0.1f, 0.5f), 4.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("compAttack", "Comp Attack",
+        juce::NormalisableRange<float>(0.1f, 100.0f, 0.1f, 0.4f), 5.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("compRelease", "Comp Release",
+        juce::NormalisableRange<float>(10.0f, 500.0f, 1.0f, 0.4f), 50.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("compMakeup", "Comp Makeup",
+        juce::NormalisableRange<float>(0.0f, 24.0f, 0.1f), 0.0f));
+
+    // Chorus
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("chorusRate", "Chorus Rate",
+        juce::NormalisableRange<float>(0.1f, 5.0f, 0.01f), 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("chorusDepth", "Chorus Depth", 0.0f, 1.0f, 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("chorusMix", "Chorus Mix", 0.0f, 1.0f, 0.0f));
+
     // Master
     params.push_back(std::make_unique<juce::AudioParameterFloat>("masterGain", "Master",
         0.0f, 1.0f, 0.7f));
@@ -73,6 +104,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout SchranzMachineProcessor::cre
 void SchranzMachineProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     schranzSynth.prepare(sampleRate, samplesPerBlock);
+    delayEngine.prepare(sampleRate, samplesPerBlock);
+    reverbEngine.prepare(sampleRate);
+    compressorL.prepare(sampleRate);
+    compressorR.prepare(sampleRate);
+    chorusEngine.prepare(sampleRate);
 }
 
 void SchranzMachineProcessor::releaseResources() {}
@@ -90,8 +126,30 @@ void SchranzMachineProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
 
+    keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(), true);
+
     updateVoiceParameters();
+    updateEffectParameters();
     schranzSynth.processBlock(buffer, midiMessages);
+
+    int numSamples = buffer.getNumSamples();
+    bool isStereo = buffer.getNumChannels() >= 2;
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        float l = buffer.getSample(0, i);
+        float r = isStereo ? buffer.getSample(1, i) : l;
+
+        l = compressorL.process(l);
+        r = compressorR.process(r);
+
+        chorusEngine.process(l, r);
+        delayEngine.process(l, r);
+        reverbEngine.process(l, r);
+
+        buffer.setSample(0, i, l);
+        if (isStereo) buffer.setSample(1, i, r);
+    }
 
     float master = apvts.getRawParameterValue("masterGain")->load();
     buffer.applyGain(master);
@@ -159,6 +217,34 @@ void SchranzMachineProcessor::updateVoiceParameters()
             voice->getSampleEngine().setRootNote(sampleRoot);
         }
     }
+}
+
+void SchranzMachineProcessor::updateEffectParameters()
+{
+    delayEngine.setTime(apvts.getRawParameterValue("delayTime")->load());
+    delayEngine.setFeedback(apvts.getRawParameterValue("delayFeedback")->load());
+    delayEngine.setMix(apvts.getRawParameterValue("delayMix")->load());
+    delayEngine.setPingPong(apvts.getRawParameterValue("delayPingPong")->load() > 0.5f);
+
+    reverbEngine.setRoomSize(apvts.getRawParameterValue("reverbSize")->load());
+    reverbEngine.setDamping(apvts.getRawParameterValue("reverbDamping")->load());
+    reverbEngine.setMix(apvts.getRawParameterValue("reverbMix")->load());
+    reverbEngine.setWidth(apvts.getRawParameterValue("reverbWidth")->load());
+
+    compressorL.setThreshold(apvts.getRawParameterValue("compThreshold")->load());
+    compressorL.setRatio(apvts.getRawParameterValue("compRatio")->load());
+    compressorL.setAttack(apvts.getRawParameterValue("compAttack")->load());
+    compressorL.setRelease(apvts.getRawParameterValue("compRelease")->load());
+    compressorL.setMakeupGain(apvts.getRawParameterValue("compMakeup")->load());
+    compressorR.setThreshold(apvts.getRawParameterValue("compThreshold")->load());
+    compressorR.setRatio(apvts.getRawParameterValue("compRatio")->load());
+    compressorR.setAttack(apvts.getRawParameterValue("compAttack")->load());
+    compressorR.setRelease(apvts.getRawParameterValue("compRelease")->load());
+    compressorR.setMakeupGain(apvts.getRawParameterValue("compMakeup")->load());
+
+    chorusEngine.setRate(apvts.getRawParameterValue("chorusRate")->load());
+    chorusEngine.setDepth(apvts.getRawParameterValue("chorusDepth")->load());
+    chorusEngine.setMix(apvts.getRawParameterValue("chorusMix")->load());
 }
 
 void SchranzMachineProcessor::loadSample(const juce::File& file)
