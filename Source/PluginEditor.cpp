@@ -213,14 +213,16 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
 {
     setLookAndFeel(&schranzLnf);
     setResizable(true, true);
-    setResizeLimits(900, 820, 1800, 1300);
-    setSize(1120, 1020);
+    setResizeLimits(960, 700, 1800, 1300);
+    setSize(1080, 800);
     setWantsKeyboardFocus(true);
     addKeyListener(this);
 
-    // Keyboard setup — 5 octaves from C1 to C6, Z/X/Y for octave shift
-    keyboard.setAvailableRange(24, 96);
-    keyboard.setKeyPressBaseOctave(4);
+    // Keyboard setup — 4 visible octaves, Y/X shift the range up/down
+    keyboard.setAvailableRange(kbRangeLow, kbRangeLow + 48);
+    keyboard.setKeyPressBaseOctave(kbBaseOctave);
+    keyboard.setLowestVisibleKey(kbRangeLow);
+    keyboard.onOctaveShift = [this](int dir) { shiftKeyboardOctave(dir); };
     keyboard.setOctaveForMiddleC(4);
     keyboard.setColour(juce::MidiKeyboardComponent::whiteNoteColourId, juce::Colour(0xFF1A1A1A));
     keyboard.setColour(juce::MidiKeyboardComponent::blackNoteColourId, juce::Colour(0xFF050505));
@@ -230,6 +232,23 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
     keyboard.setColour(juce::MidiKeyboardComponent::upDownButtonBackgroundColourId, juce::Colour(0xFF111111));
     keyboard.setColour(juce::MidiKeyboardComponent::upDownButtonArrowColourId, juce::Colour(SchranzLookAndFeel::kAccent));
     addAndMakeVisible(keyboard);
+
+    // Octave shift controls (buttons + Y/X shortcut)
+    addAndMakeVisible(octaveDownBtn);
+    addAndMakeVisible(octaveUpBtn);
+    addAndMakeVisible(octaveLabel);
+    octaveLabel.setJustificationType(juce::Justification::centred);
+    octaveLabel.setFont(juce::Font(10.0f).boldened());
+    octaveLabel.setColour(juce::Label::textColourId, juce::Colour(SchranzLookAndFeel::kTextDim));
+    octaveDownBtn.setTooltip("Shift keyboard one octave down (shortcut: Y)");
+    octaveUpBtn.setTooltip("Shift keyboard one octave up (shortcut: X)");
+    octaveDownBtn.onClick = [this] { shiftKeyboardOctave(-1); };
+    octaveUpBtn.onClick   = [this] { shiftKeyboardOctave(+1); };
+    {
+        int displayOctave = kbRangeLow / 12 - 1;
+        octaveLabel.setText("OCT " + juce::String(displayOctave) + "-" + juce::String(displayOctave + 4),
+                            juce::dontSendNotification);
+    }
 
     // Preset bar
     addAndMakeVisible(prevPresetBtn);
@@ -491,25 +510,40 @@ SchranzMachineEditor::~SchranzMachineEditor()
 
 void SchranzMachineEditor::timerCallback()
 {
-    keyboard.grabKeyboardFocus();
+    // Only claim focus for computer-key playing when the mouse is over the
+    // plugin and no editable widget (combo box popup, text entry) is active.
+    if (isMouseOverOrDragging(true))
+    {
+        auto* focused = juce::Component::getCurrentlyFocusedComponent();
+        if (focused == nullptr || focused == this)
+            keyboard.grabKeyboardFocus();
+    }
 }
 
 bool SchranzMachineEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
 {
     auto code = key.getKeyCode();
-    if (code == 'Y' || code == 'y')
-    {
-        kbBaseOctave = juce::jmax(0, kbBaseOctave - 1);
-        keyboard.setKeyPressBaseOctave(kbBaseOctave);
-        return true;
-    }
-    if (code == 'X' || code == 'x')
-    {
-        kbBaseOctave = juce::jmin(8, kbBaseOctave + 1);
-        keyboard.setKeyPressBaseOctave(kbBaseOctave);
-        return true;
-    }
+    if (code == 'Y' || code == 'y') { shiftKeyboardOctave(-1); return true; }
+    if (code == 'X' || code == 'x') { shiftKeyboardOctave(+1); return true; }
     return false;
+}
+
+void SchranzMachineEditor::shiftKeyboardOctave(int direction)
+{
+    // Move the visible/playable range by one octave, clamped to MIDI 0..120
+    int newLow = juce::jlimit(0, 72, kbRangeLow + direction * 12);
+    if (newLow == kbRangeLow) return;
+    kbRangeLow = newLow;
+    kbBaseOctave = juce::jlimit(0, 8, kbBaseOctave + direction);
+
+    keyboard.setAvailableRange(kbRangeLow, juce::jmin(120, kbRangeLow + 48));
+    keyboard.setLowestVisibleKey(kbRangeLow);
+    keyboard.setKeyPressBaseOctave(kbBaseOctave);
+
+    int displayOctave = kbRangeLow / 12 - 1;  // C1 == MIDI 24 -> octave 1
+    octaveLabel.setText("OCT " + juce::String(displayOctave) + "-" + juce::String(displayOctave + 4),
+                        juce::dontSendNotification);
+    keyboard.grabKeyboardFocus();
 }
 
 void SchranzMachineEditor::setupKnob(juce::Slider& slider)
@@ -704,9 +738,17 @@ void SchranzMachineEditor::resized()
     presetBar.removeFromRight(6);
     presetNameBox.setBounds(presetBar);
 
-    // Keyboard at bottom (5 octaves C1-C6, 65px tall)
-    auto keyboardArea = area.removeFromBottom(65);
+    // Keyboard at bottom (4 visible octaves, 64px tall)
+    auto keyboardArea = area.removeFromBottom(64);
     keyboard.setBounds(keyboardArea);
+
+    // Octave control strip just above keyboard
+    auto octaveStrip = area.removeFromBottom(24).reduced(8, 2);
+    octaveDownBtn.setBounds(octaveStrip.removeFromLeft(60));
+    octaveStrip.removeFromLeft(4);
+    octaveLabel.setBounds(octaveStrip.removeFromLeft(90));
+    octaveStrip.removeFromLeft(4);
+    octaveUpBtn.setBounds(octaveStrip.removeFromLeft(60));
 
     // MIDI Pattern rack above keyboard (60 px tall)
     auto patternRack = area.removeFromBottom(64).reduced(6, 2);

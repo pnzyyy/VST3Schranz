@@ -61,6 +61,25 @@ private:
     bool isDragOver = false;
 };
 
+// Keyboard that intercepts Y (octave down) and X (octave up) before
+// the default computer-keyboard note mapping consumes them.
+class SchranzKeyboard : public juce::MidiKeyboardComponent
+{
+public:
+    SchranzKeyboard(juce::MidiKeyboardState& state, Orientation o)
+        : juce::MidiKeyboardComponent(state, o) {}
+
+    std::function<void(int)> onOctaveShift;
+
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        auto c = key.getKeyCode();
+        if (c == 'Y' || c == 'y') { if (onOctaveShift) onOctaveShift(-1); return true; }
+        if (c == 'X' || c == 'x') { if (onOctaveShift) onOctaveShift(+1); return true; }
+        return juce::MidiKeyboardComponent::keyPressed(key);
+    }
+};
+
 class SchranzMachineEditor : public juce::AudioProcessorEditor,
                              private juce::Timer,
                              public juce::KeyListener
@@ -87,8 +106,13 @@ private:
     juce::TooltipWindow tooltipWindow{ this, 700 };
 
     // MIDI Keyboard
-    juce::MidiKeyboardComponent keyboard;
+    SchranzKeyboard keyboard;
+    juce::Label octaveLabel;
+    juce::TextButton octaveDownBtn{"Y -"};
+    juce::TextButton octaveUpBtn{"+ X"};
     int kbBaseOctave = 4;
+    int kbRangeLow = 24;   // current visible range start
+    void shiftKeyboardOctave(int direction);
 
     // Preset controls
     juce::TextButton prevPresetBtn{"<"};
