@@ -24,16 +24,25 @@ void DelayEngine::process(float& leftSample, float& rightSample)
     float delayL = bufferL[static_cast<size_t>(readPos)];
     float delayR = bufferR[static_cast<size_t>(readPos)];
 
+    float fbL, fbR;
     if (pingPong)
     {
-        bufferL[static_cast<size_t>(writePos)] = rightSample + delayR * feedback;
-        bufferR[static_cast<size_t>(writePos)] = leftSample + delayL * feedback;
+        fbL = rightSample + delayR * feedback;
+        fbR = leftSample + delayL * feedback;
     }
     else
     {
-        bufferL[static_cast<size_t>(writePos)] = leftSample + delayL * feedback;
-        bufferR[static_cast<size_t>(writePos)] = rightSample + delayR * feedback;
+        fbL = leftSample + delayL * feedback;
+        fbR = rightSample + delayR * feedback;
     }
+
+    if (!std::isfinite(fbL)) fbL = 0.0f;
+    if (!std::isfinite(fbR)) fbR = 0.0f;
+    fbL = juce::jlimit(-2.0f, 2.0f, fbL);
+    fbR = juce::jlimit(-2.0f, 2.0f, fbR);
+
+    bufferL[static_cast<size_t>(writePos)] = fbL;
+    bufferR[static_cast<size_t>(writePos)] = fbR;
 
     leftSample  = leftSample * (1.0f - mix) + delayL * mix;
     rightSample = rightSample * (1.0f - mix) + delayR * mix;
@@ -243,8 +252,14 @@ void PhaserEngine::process(float& leftSample, float& rightSample)
     float coeff = (modFreq * juce::MathConstants<float>::twoPi / static_cast<float>(sampleRate) - 1.0f)
                 / (modFreq * juce::MathConstants<float>::twoPi / static_cast<float>(sampleRate) + 1.0f);
 
-    float inL = leftSample + feedbackSampleL * feedback;
-    float inR = rightSample + feedbackSampleR * feedback;
+    // Reduced feedback range (max 0.7 effective) prevents runaway oscillation
+    float safeFb = juce::jlimit(0.0f, 0.7f, feedback);
+    float inL = leftSample + feedbackSampleL * safeFb;
+    float inR = rightSample + feedbackSampleR * safeFb;
+    if (!std::isfinite(inL)) inL = leftSample;
+    if (!std::isfinite(inR)) inR = rightSample;
+    inL = juce::jlimit(-2.0f, 2.0f, inL);
+    inR = juce::jlimit(-2.0f, 2.0f, inR);
 
     for (int i = 0; i < kNumStages; ++i)
     {

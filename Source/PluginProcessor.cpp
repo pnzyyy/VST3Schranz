@@ -62,7 +62,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SchranzMachineProcessor::cre
     // Delay
     params.push_back(std::make_unique<juce::AudioParameterFloat>("delayTime", "Delay Time",
         juce::NormalisableRange<float>(10.0f, 1000.0f, 1.0f, 0.4f), 250.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayFeedback", "Delay FB", 0.0f, 0.95f, 0.4f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayFeedback", "Delay FB", 0.0f, 0.85f, 0.4f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("delayMix", "Delay Mix", 0.0f, 1.0f, 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterBool>("delayPingPong", "Ping Pong", false));
 
@@ -100,7 +100,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SchranzMachineProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("phaserDepth", "Phaser Depth", 0.0f, 1.0f, 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("phaserMix", "Phaser Mix", 0.0f, 1.0f, 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("phaserFeedback", "Phaser FB",
-        juce::NormalisableRange<float>(0.0f, 0.9f, 0.01f), 0.3f));
+        juce::NormalisableRange<float>(0.0f, 0.7f, 0.01f), 0.3f));
 
     // EQ
     params.push_back(std::make_unique<juce::AudioParameterFloat>("eqLowGain", "EQ Low",
@@ -246,11 +246,11 @@ void SchranzMachineProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         delayEngine.process(l, r);
         reverbEngine.process(l, r);
 
-        // NaN/Inf safety + hard limiter to protect speakers and CoreAudio
+        // NaN/Inf safety + soft limiter to avoid hard-clip noise
         if (!std::isfinite(l)) l = 0.0f;
         if (!std::isfinite(r)) r = 0.0f;
-        l = juce::jlimit(-1.5f, 1.5f, l);
-        r = juce::jlimit(-1.5f, 1.5f, r);
+        l = juce::jlimit(-3.0f, 3.0f, l);
+        r = juce::jlimit(-3.0f, 3.0f, r);
 
         buffer.setSample(0, i, l);
         if (isStereo) buffer.setSample(1, i, r);
@@ -259,14 +259,22 @@ void SchranzMachineProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     float master = apvts.getRawParameterValue("masterGain")->load();
     buffer.applyGain(master);
 
-    // Final clamp at output stage
+    // Soft limiter at output stage (tanh-based, prevents harsh clipping)
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     {
         auto* data = buffer.getWritePointer(ch);
         for (int i = 0; i < numSamples; ++i)
         {
-            if (!std::isfinite(data[i])) data[i] = 0.0f;
-            data[i] = juce::jlimit(-1.0f, 1.0f, data[i]);
+            if (!std::isfinite(data[i])) { data[i] = 0.0f; continue; }
+            float x = data[i];
+            // Soft knee compression above 0.85, prevents harsh clipping
+            if (std::abs(x) > 0.85f)
+            {
+                float sign = x > 0 ? 1.0f : -1.0f;
+                float over = std::abs(x) - 0.85f;
+                x = sign * (0.85f + 0.15f * std::tanh(over / 0.15f));
+            }
+            data[i] = x;
         }
     }
 }

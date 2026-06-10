@@ -61,7 +61,9 @@ private:
     bool isDragOver = false;
 };
 
-class SchranzMachineEditor : public juce::AudioProcessorEditor, private juce::Timer
+class SchranzMachineEditor : public juce::AudioProcessorEditor,
+                             private juce::Timer,
+                             public juce::KeyListener
 {
 public:
     explicit SchranzMachineEditor(SchranzMachineProcessor&);
@@ -69,6 +71,8 @@ public:
 
     void paint(juce::Graphics&) override;
     void resized() override;
+
+    bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
 
     // AI suggestions
     juce::OwnedArray<juce::TextButton> suggestionBtns;
@@ -80,9 +84,11 @@ private:
 
     SchranzMachineProcessor& processorRef;
     SchranzLookAndFeel schranzLnf;
+    juce::TooltipWindow tooltipWindow{ this, 700 };
 
     // MIDI Keyboard
     juce::MidiKeyboardComponent keyboard;
+    int kbBaseOctave = 4;
 
     // Preset controls
     juce::TextButton prevPresetBtn{"<"};

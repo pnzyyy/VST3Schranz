@@ -213,11 +213,14 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
 {
     setLookAndFeel(&schranzLnf);
     setResizable(true, true);
-    setResizeLimits(800, 700, 1600, 1200);
-    setSize(1000, 940);
+    setResizeLimits(900, 820, 1800, 1300);
+    setSize(1120, 1020);
+    setWantsKeyboardFocus(true);
+    addKeyListener(this);
 
-    // Keyboard setup — 5 octaves from C1 to C6
+    // Keyboard setup — 5 octaves from C1 to C6, Z/X/Y for octave shift
     keyboard.setAvailableRange(24, 96);
+    keyboard.setKeyPressBaseOctave(4);
     keyboard.setOctaveForMiddleC(4);
     keyboard.setColour(juce::MidiKeyboardComponent::whiteNoteColourId, juce::Colour(0xFF1A1A1A));
     keyboard.setColour(juce::MidiKeyboardComponent::blackNoteColourId, juce::Colour(0xFF050505));
@@ -438,6 +441,9 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
     addKnob(phaserDepthSlider, phDepthLabel, "phaserDepth"); attachSlider(phDepthAttach, "phaserDepth", phaserDepthSlider);
     addKnob(phaserMixSlider, phMixLabel, "phaserMix");       attachSlider(phMixAttach, "phaserMix", phaserMixSlider);
     addKnob(phaserFbSlider, phFbLabel, "phaserFeedback");    attachSlider(phFbAttach, "phaserFeedback", phaserFbSlider);
+    phaserRateSlider.setTooltip("Phaser LFO speed (only audible when MIX > 0)");
+    phaserDepthSlider.setTooltip("Sweep range (only audible when MIX > 0)");
+    phaserFbSlider.setTooltip("Resonance (only audible when MIX > 0)");
 
     // EQ
     addKnob(eqLowSlider, eqLowLabel, "eqLowGain");     attachSlider(eqLowAttach, "eqLowGain", eqLowSlider);
@@ -448,10 +454,17 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
     // Ring Mod
     addKnob(ringFreqSlider, ringFreqLabel, "ringModFreq"); attachSlider(ringFreqAttach, "ringModFreq", ringFreqSlider);
     addKnob(ringMixSlider, ringMixLabel, "ringModMix");    attachSlider(ringMixAttach, "ringModMix", ringMixSlider);
+    ringFreqSlider.setTooltip("Carrier frequency (only audible when MIX > 0)");
+    ringMixSlider.setTooltip("Turn UP to hear metallic ring mod effect");
 
     // Waveshaper
     addCombo(wsTypeBox, {"Tanh", "Sin", "Abs", "Cubic"}, wsTypeAttach, "wsType");
     addKnob(wsAmountSlider, wsAmountLabel, "wsAmount"); attachSlider(wsAmountAttach, "wsAmount", wsAmountSlider);
+    wsAmountSlider.setTooltip("Turn UP to apply waveshaping (type changes character)");
+    wsTypeBox.setTooltip("Shape character (only audible when AMOUNT > 0)");
+
+    // EQ tooltips
+    eqMidFreqSlider.setTooltip("Mid band center frequency (only audible when MID gain != 0)");
 
     // Master
     addAndMakeVisible(masterSlider);
@@ -472,12 +485,31 @@ SchranzMachineEditor::SchranzMachineEditor(SchranzMachineProcessor& p)
 SchranzMachineEditor::~SchranzMachineEditor()
 {
     stopTimer();
+    removeKeyListener(this);
     setLookAndFeel(nullptr);
 }
 
 void SchranzMachineEditor::timerCallback()
 {
     keyboard.grabKeyboardFocus();
+}
+
+bool SchranzMachineEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
+{
+    auto code = key.getKeyCode();
+    if (code == 'Y' || code == 'y')
+    {
+        kbBaseOctave = juce::jmax(0, kbBaseOctave - 1);
+        keyboard.setKeyPressBaseOctave(kbBaseOctave);
+        return true;
+    }
+    if (code == 'X' || code == 'x')
+    {
+        kbBaseOctave = juce::jmin(8, kbBaseOctave + 1);
+        keyboard.setKeyPressBaseOctave(kbBaseOctave);
+        return true;
+    }
+    return false;
 }
 
 void SchranzMachineEditor::setupKnob(juce::Slider& slider)
